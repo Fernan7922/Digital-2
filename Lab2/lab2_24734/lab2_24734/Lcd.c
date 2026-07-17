@@ -31,9 +31,6 @@ static void LCD_WriteByte(uint8_t valor)
 	LCD_PulseEnable();
 }
 
-// ---------------------------------------------------------------
-// Funciones publicas
-// ---------------------------------------------------------------
 
 void LCD_Command(uint8_t cmd)
 {
@@ -63,14 +60,26 @@ void LCD_Init(void)
 	LCD_CTRL_DDR |= (1 << LCD_RS) | (1 << LCD_E);
 	LCD_CTRL_PORT &= ~((1 << LCD_RS) | (1 << LCD_E));
 
-	_delay_ms(20);   // esperar el power-on reset interno de la LCD (pide minimo 15ms)
+	_delay_ms(50);   // power-on reset interno de la LCD (el datasheet pide minimo 15ms,
+	// aqui le damos bastante mas margen mientras depuramos)
 
-	// Secuencia de inicializacion en 8 bits segun el datasheet del HD44780
+	// Secuencia de inicializacion en 8 bits segun el datasheet del HD44780.
+	// Mandamos el Function Set tres veces seguidas: es la forma recomendada
+	// por el fabricante para "resincronizar" la LCD si por algun motivo
+	// quedo en un estado raro (por ejemplo si el micro se reinicio a medias
+	// mientras la LCD ya estaba energizada).
+	LCD_Command(0x38);
+	_delay_ms(5);
+	LCD_Command(0x38);
+	_delay_ms(1);
+	LCD_Command(0x38);
+	_delay_ms(1);
+
 	LCD_Command(0x38);   // Function set: bus 8 bits, 2 lineas, fuente 5x8
-	LCD_Command(0x0C);   // Display ON, cursor OFF, sin parpadeo
-	LCD_Command(0x06);   // Entry mode: cursor incrementa, sin desplazar la pantalla
+	LCD_Command(0x0C);   // Display ON, cursor OFF, sin parpadeo   00001100
 	LCD_Command(0x01);   // Clear display
-	_delay_ms(2);
+	_delay_ms(3);
+	LCD_Command(0x06);   // Entry mode: cursor incrementa, sin desplazar la pantalla
 }
 
 void LCD_Clear(void)
