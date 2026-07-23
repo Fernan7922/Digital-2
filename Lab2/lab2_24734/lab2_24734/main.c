@@ -1,17 +1,49 @@
-#define F_CPU 16000000UL   // Nano corre a 16MHz, esto lo necesitan lcd.c y adc.c para calcular sus tiempos
+// Fernando Guzman
+//24734
+//MAIN
+//Laboratorio 2   ADC y CONTADOR
+
+
+
+#define F_CPU 16000000UL   // Nano corre a 16MHz, esto lo necesitan lcd.c y adc.c para calcular sus tiempos bien(ojó también hay que configurar la frecuencia no solo en progra, se vió que también hay 
+//que configurarla en Microchip, en configuraciones.
 
 #include <avr/io.h>
 #include <util/delay.h>
 #include <stdio.h>
 #include "lcd.h"
 #include "adc.h"
+#include <avr/interrupt.h>   // necesario para usar ISR() y sei()
+#include "uart.h"             // la nueva librería que agregamos
+volatile uint16_t contador = 0; //
+
+//Esta funcion NO se llama nunca a mano: el hardware la ejecuta solo,
+// automaticamente, cada vez que llega un byte nuevo por el UART.
+// Aqui es donde revisamos si lo que llego fue '+' o '-
+ISR(USART_RX_vect)
+{
+	char recibido = UDR0;   // leemos el caracter que acaba de llegar
+	
+	if (recibido == '+')
+	{
+		contador++;
+	}
+	else if (recibido == '-')
+	{
+		if (contador > 0)     // nunca lo dejamos bajar de 0
+		contador--;
+	}
+}
 
 int main(void)
 {
 	ADC_Init();
 	LCD_Init();
+	
+	UART_Init(9600);
+	sei();
 
-	// ---- Pantalla de bienvenida, se muestra una sola vez al arrancar ----
+	//  Pantalla de bienvenida, se muestra una sola vez al arrancar
 	LCD_SetCursor(0, 5);
 	LCD_Print("Lab 2");
 	LCD_SetCursor(1, 1);
@@ -20,6 +52,7 @@ int main(void)
 	LCD_Clear();          // limpiamos antes de arrancar con las lecturas
 
 	char buffer[8];   // suficiente para 1023 + el nulo del final
+	char uart_msg[32];// se define así para contruir el mensaje completo que se manda por uart
 
 	while (1)
 	{
@@ -52,7 +85,23 @@ int main(void)
 		LCD_SetCursor(1, 6);
 		LCD_Print(buffer);
 		LCD_Print("     ");   // espacios de sobra: 1023 tiene mas
-
-		_delay_ms(200);      // pausa corta para que el valor no ande parpadeando sin parar
-	}
+		
+		
+		
+		
+		// Etiqueta y valor de S3 (contador), en columna 11 de cada fila
+		LCD_SetCursor(0, 12);
+		LCD_Print("S3:");
+		
+		sprintf(buffer, "%u", contador);   // el "%u" es por contador es unsigned
+		LCD_SetCursor(1, 13);
+		LCD_Print(buffer);
+		LCD_Print("  ");   // espacios de sobra por si el numero anterior tenia mas digitos
+		
+		// ---- Enviar ambas lecturas por UART hacia la PC ----
+		sprintf(uart_msg, "S1:%d.%02dV S2:%d.%02dV\r\n", entero, decimal, entero2, decimal2);
+		UART_TransmitString(uart_msg);
+		
+		_delay_ms(200);
+		}
 }
