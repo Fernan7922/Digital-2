@@ -19,13 +19,19 @@ int main(void)
 	_delay_ms(2000);     // la dejamos un par de segundos en pantalla
 	LCD_Clear();          // limpiamos antes de arrancar con las lecturas
 
-	char buffer[8];   // suficiente para "1023" + el nulo del final
+	char buffer[8];   // suficiente para 1023 + el nulo del final
 
 	while (1)
 	{
 		uint16_t lectura = ADC_Read(0);   // Pot 1 esta en A0
+		//ahora se cambiará para mostrar el valor de 1023 en voltaje
+		//se trabajará en centésimas, esto evitará usar floats y sprintf com %f
+		uint16_t voltios_x100 = (( uint32_t) lectura *500)/1023;
+		uint8_t entero= voltios_x100 /100;
+		uint8_t decimal= voltios_x100 %100;
+		
 
-		sprintf(buffer, "%u", lectura);   // lo dejamos tal cual, sin convertir a voltaje
+		sprintf(buffer, "%d.%02d V", entero, decimal);  // lo dejamos tal cual, sin convertir a voltaje
 
 		LCD_SetCursor(0, 0);
 		LCD_Print("S1: ");
