@@ -10,11 +10,11 @@
 // Pinout SPI del ATmega328p en modo ESCLAVO (tabla "SPI Pin
 // Overrides" del datasheet):
 //
-//   PB5 = D13 = SCK   -> entrada (el reloj lo controla el maestro)
-//   PB4 = D12 = MISO  -> de direccion definida por el usuario -> salida
+//   PB5 = D13 = SCK    entrada (el reloj lo controla el maestro)
+//   PB4 = D12 = MISO   de direccion definida por el usuario -> salida
 //                        (por aqui el esclavo contesta)
-//   PB3 = D11 = MOSI  -> entrada (por aqui llega lo que manda el maestro)
-//   PB2 = D10 = SS    -> entrada (el maestro la baja para seleccionarnos)
+//   PB3 = D11 = MOSI   entrada (por aqui llega lo que manda el maestro)
+//   PB2 = D10 = SS     entrada (el maestro la baja para seleccionarnos)
 // ---------------------------------------------------------------
 
 // Trama de 4 bytes que se va mandando: [pot1_alto, pot1_bajo, pot2_alto, pot2_bajo]
@@ -27,7 +27,7 @@ void SPI_Slave_Init(void)
 	DDRB |= (1 << PB4);
 	DDRB &= ~((1 << PB3) | (1 << PB5) | (1 << PB2));
 
-	// Paso 1 del funcionamiento SPI (segun el PDF): dejamos el primer
+	// Paso 1 del funcionamiento SPI : dejamos el primer
 	// byte ya cargado en SPDR, listo para la primera vez que el
 	// maestro empiece a generar el reloj.
 	SPDR = trama[0];

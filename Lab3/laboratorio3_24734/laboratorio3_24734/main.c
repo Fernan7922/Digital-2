@@ -63,7 +63,7 @@ int main(void)
 		// Mandamos el VOLTAJE (en milivoltios) por SPI, ya convertido.
 		// mv1 y mv2 caben perfectamente en 16 bits (max 5000 < 65535),
 		// asi que se sigue partiendo en byte alto / byte bajo igual
-		// que antes, solo que ahora es voltaje y no el valor crudo.
+		// que antes, solo que ahora es voltaje y no el valor crudo
 		SPI_Slave_ActualizarTrama(mv1 >> 8, mv1 & 0xFF, mv2 >> 8, mv2 & 0xFF);
 
 		// Mostramos el mismo voltaje por UART para verificar
