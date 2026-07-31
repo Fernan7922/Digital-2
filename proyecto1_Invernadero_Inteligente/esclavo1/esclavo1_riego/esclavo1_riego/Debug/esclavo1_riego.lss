@@ -307,7 +307,7 @@ int main(void)
  18e:	8d 81       	ldd	r24, Y+5	; 0x05
  190:	81 11       	cpse	r24, r1
  192:	1b c0       	rjmp	.+54     	; 0x1ca <main+0xce>
- 194:	08 32       	cpi	r16, 0x28	; 40
+ 194:	02 33       	cpi	r16, 0x32	; 50
  196:	11 05       	cpc	r17, r1
  198:	dc f4       	brge	.+54     	; 0x1d0 <main+0xd4>
 			porcentaje < UMBRAL_HUMEDAD &&
@@ -430,14 +430,14 @@ int main(void)
 
 void Relay_init(void)
 {
-	// Se configura el pin como salida digital.
-	RELAY_DDR |= (1 << RELAY_PIN);
+    // Se configura el pin como salida digital.
+    RELAY_DDR |= (1 << RELAY_PIN);
  222:	8a b1       	in	r24, 0x0a	; 10
  224:	80 62       	ori	r24, 0x20	; 32
  226:	8a b9       	out	0x0a, r24	; 10
 
-	// Se arranca apagado (bomba detenida) por seguridad.
-	RELAY_PORT &= ~(1 << RELAY_PIN);
+    // Se arranca apagado (bomba detenida) por seguridad.
+    RELAY_PORT &= ~(1 << RELAY_PIN);
  228:	8b b1       	in	r24, 0x0b	; 11
  22a:	8f 7d       	andi	r24, 0xDF	; 223
  22c:	8b b9       	out	0x0b, r24	; 11
@@ -448,9 +448,9 @@ void Relay_init(void)
 
 void Relay_on(void)
 {
-	RELAY_PORT |= (1 << RELAY_PIN);
+    RELAY_PORT  &= ~ (1 << RELAY_PIN);
  230:	8b b1       	in	r24, 0x0b	; 11
- 232:	80 62       	ori	r24, 0x20	; 32
+ 232:	8f 7d       	andi	r24, 0xDF	; 223
  234:	8b b9       	out	0x0b, r24	; 11
  236:	08 95       	ret
 
@@ -459,9 +459,9 @@ void Relay_on(void)
 
 void Relay_off(void)
 {
-	RELAY_PORT &= ~(1 << RELAY_PIN);
+    RELAY_PORT |=(1 << RELAY_PIN);
  238:	8b b1       	in	r24, 0x0b	; 11
- 23a:	8f 7d       	andi	r24, 0xDF	; 223
+ 23a:	80 62       	ori	r24, 0x20	; 32
  23c:	8b b9       	out	0x0b, r24	; 11
  23e:	08 95       	ret
 

@@ -18,7 +18,7 @@
 
 // Umbral de humedad: por debajo de esto, se considera que la tierra
 // esta seca y se necesita regar.
-#define UMBRAL_HUMEDAD 40
+#define UMBRAL_HUMEDAD 50
 
 // Cuanto tiempo se deja la bomba encendida cada vez que riega.
 #define DURACION_RIEGO_MS 5000UL
