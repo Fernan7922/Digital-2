@@ -1,240 +1,152 @@
 /*
- * master_I2c_lcd_uart.c
+ * lcd.c
  *
- * Created: 30/07/2026 01:09:07
  * Author : ferg7
- */ 
+ */
 
 #define F_CPU 16000000UL
 
+// Fuerza la ruta "vieja" de _delay_ms()/_delay_us() (basada en
+// _delay_loop_2, no en __builtin_avr_delay_cycles). Esa ruta no necesita
+// que el valor del delay sea una constante de compilacion, asi que
+// compila sin problema sin importar el nivel de optimizacion del
+// proyecto (-O0, -Og, -Os, etc). Un poco menos precisa, pero para
+// delays de milisegundos como los del LCD no se nota.
+#define __DELAY_BACKWARD_COMPATIBLE__
+
+#include "lcd.h"
 #include <avr/io.h>
-#include <avr/interrupt.h>
 #include <util/delay.h>
 #include <stdlib.h>
 #include <string.h>
-#include "twi.h"
-#include "uart.h"
-#include "timer.h"
-#include "aht10.h"
-#include "servo.h"
-#include "led.h"
-#include "relay_fan.h"
-#include "lcd.h"
 
-// Direcciones I2C de los 2 Nano esclavos, en base al pineado del proyecto.
-#define DIR_PERIFERICO_RIEGO 0x08
-#define DIR_PERIFERICO_CLIMA 0x09
+// Todos los pines del LCD caen en PORTB (D8-D13), asi que basta con un
+// solo puerto para todo el driver.
+#define LCD_DDR  DDRB
+#define LCD_PORT PORTB
 
-// El periferico de riego manda 2 bytes: humedad de suelo (0-100) y el
-// estado de la bomba (0 apagada, 1 encendida).
-#define LONGITUD_PAQUETE_RIEGO 2
+#define LCD_RS PB0 // D8
+#define LCD_EN PB1 // D9
+#define LCD_D4 PB2 // D10
+#define LCD_D5 PB3 // D11
+#define LCD_D6 PB4 // D12
+#define LCD_D7 PB5 // D13
 
-// El periferico de clima manda 3 bytes: los 2 bytes del valor crudo del
-// LDR (no cabe en 1 solo byte porque el ADC da 0-1023) y el estado de
-// la sombra (0 retraida, 1 desplegada).
-#define LONGITUD_PAQUETE_CLIMA 3
-
-#define TEMP_UMBRAL_ACTIVAR    30.0f
-#define TEMP_UMBRAL_DESACTIVAR 28.0f
-
-// Muestra una pantalla fija por cierto tiempo y luego borra, para armar
-// la secuencia de carga inicial (splash) antes de empezar a leer sensores.
-static void Splash_mostrar(const char *linea1, const char *linea2, uint16_t duracion_ms)
+static void LCD_pulso_enable(void)
 {
-	LCD_print_line(0, linea1);
-	LCD_print_line(1, linea2);
-	_delay_ms(duracion_ms);
-	LCD_clear();
-	_delay_ms(300); // pausa corta con la pantalla en blanco entre cuadro y cuadro
+	LCD_PORT |= (1 << LCD_EN);
+	_delay_us(1);
+	LCD_PORT &= ~(1 << LCD_EN);
+	_delay_us(100);
 }
 
-// Arma la fila de abajo del LCD con los 3 valores que ya se mandan por UART.
-// Formato compacto (sin ° ni %) porque en 16 columnas no cabe todo con
-// las unidades: "T:24 H:60 L:512"
-static void LCD_actualizar_sensores(uint8_t temp_ok, float temperatura,
-                                     uint8_t riego_ok, uint8_t humedad_suelo,
-                                     uint8_t clima_ok, uint16_t nivel_luz)
+static void LCD_enviar_nibble(uint8_t nibble)
 {
-	char linea2[17];
-	char temp_str[5];
-	char hum_str[5];
-	char luz_str[6];
-
-	if (temp_ok)
-	{
-		itoa((int)(temperatura + 0.5f), temp_str, 10);
-	}
-	else
-	{
-		strcpy(temp_str, "--");
-	}
-
-	if (riego_ok)
-	{
-		itoa(humedad_suelo, hum_str, 10);
-	}
-	else
-	{
-		strcpy(hum_str, "--");
-	}
-
-	if (clima_ok)
-	{
-		itoa(nivel_luz, luz_str, 10);
-	}
-	else
-	{
-		strcpy(luz_str, "----");
-	}
-
-	strcpy(linea2, "T:");
-	strcat(linea2, temp_str);
-	strcat(linea2, " H:");
-	strcat(linea2, hum_str);
-	strcat(linea2, " L:");
-	strcat(linea2, luz_str);
-
-	LCD_print_line(1, linea2);
+	if (nibble & 0x01) LCD_PORT |= (1 << LCD_D4); else LCD_PORT &= ~(1 << LCD_D4);
+	if (nibble & 0x02) LCD_PORT |= (1 << LCD_D5); else LCD_PORT &= ~(1 << LCD_D5);
+	if (nibble & 0x04) LCD_PORT |= (1 << LCD_D6); else LCD_PORT &= ~(1 << LCD_D6);
+	if (nibble & 0x08) LCD_PORT |= (1 << LCD_D7); else LCD_PORT &= ~(1 << LCD_D7);
+	LCD_pulso_enable();
 }
 
-int main(void)
+// es_dato = 0 -> se envia como comando (RS=0)
+// es_dato = 1 -> se envia como dato/caracter (RS=1)
+static void LCD_enviar_byte(uint8_t valor, uint8_t es_dato)
 {
-	UART_init();
-	TWI_init();
-	Timer_init();
-	Servo_init();
-	LED_init();
-	Relay_fan_init();
-	LCD_init();
-	sei();
+	if (es_dato) LCD_PORT |= (1 << LCD_RS); else LCD_PORT &= ~(1 << LCD_RS);
 
-	UART_print("Iniciando AHT10...\r\n");
-	AHT10_init();
+	LCD_enviar_nibble(valor >> 4);
+	LCD_enviar_nibble(valor & 0x0F);
 
-	// --- Pantalla de carga (splash) mientras arranca todo ---
-	// Nota de FerG: ajusta textos/tiempos aqui si no es exactamente lo
-	// que querias, quedo como mejor interpretacion del mensaje de voz.
-	Splash_mostrar("Invernadero", "BE3029", 1500);
-	Splash_mostrar("Fernando", "", 1000);
-	Splash_mostrar("Chichu", "", 1000);
+	_delay_us(50);
+}
 
-	// La fila de arriba ya no cambia despues del splash, asi que se deja
-	// escrita una sola vez antes de entrar al loop.
-	LCD_print_line(0, "Invernadero");
+static void LCD_comando(uint8_t comando)
+{
+	LCD_enviar_byte(comando, 0);
 
-	uint8_t ventilacion_activa = 0;
-
-	uint32_t ultima_lectura = millis();
-	const uint32_t intervalo_lectura = 2000; // cada 2 segundos
-
-	while (1)
+	// clear (0x01) y home (0x02) tardan mas que el resto de comandos
+	if (comando == 0x01 || comando == 0x02)
 	{
-		if ((millis() - ultima_lectura) >= intervalo_lectura)
-		{
-			ultima_lectura = millis();
+		_delay_ms(2);
+	}
+}
 
-			// --- Sensor propio del master (I2C directo, con twi.c) ---
-			float temperatura = 0;
-			float humedad_aht10 = 0; // se lee pero no se muestra: la
-			// humedad que nos interesa mostrar
-			// es la del suelo (capacitivo), no
-			// esta del AHT10.
-			uint8_t temp_ok = AHT10_read(&temperatura, &humedad_aht10);
+void LCD_init(void)
+{
+	LCD_DDR |= (1 << LCD_RS) | (1 << LCD_EN) | (1 << LCD_D4) | (1 << LCD_D5) | (1 << LCD_D6) | (1 << LCD_D7);
+	LCD_PORT &= ~((1 << LCD_RS) | (1 << LCD_EN) | (1 << LCD_D4) | (1 << LCD_D5) | (1 << LCD_D6) | (1 << LCD_D7));
 
-			// --- Periferico de riego, via I2C como esclavo ---
-			uint8_t datos_riego[LONGITUD_PAQUETE_RIEGO];
-			uint8_t riego_ok = TWI_read_from_slave(DIR_PERIFERICO_RIEGO, datos_riego, LONGITUD_PAQUETE_RIEGO);
-			uint8_t humedad_suelo = datos_riego[0];
-			uint8_t bomba_activa = datos_riego[1];
+	_delay_ms(40); // espera de encendido, segun datasheet HD44780
 
-			// --- Periferico de clima, via I2C como esclavo ---
-			uint8_t datos_clima[LONGITUD_PAQUETE_CLIMA];
-			uint8_t clima_ok = TWI_read_from_slave(DIR_PERIFERICO_CLIMA, datos_clima, LONGITUD_PAQUETE_CLIMA);
-			uint16_t nivel_luz = ((uint16_t)datos_clima[0] << 8) | datos_clima[1];
-			uint8_t sombra_activa = datos_clima[2];
+	// Secuencia de "despertado" para forzar modo 4 bits, sin importar en
+	// que estado haya quedado el LCD antes.
+	LCD_enviar_nibble(0x03);
+	_delay_ms(5);
+	LCD_enviar_nibble(0x03);
+	_delay_us(150);
+	LCD_enviar_nibble(0x03);
+	LCD_enviar_nibble(0x02); // aqui ya entra en modo 4 bits
 
-			// --- Reporte por UART (se deja igual, para cuando se mande al ESP32) ---
-			UART_print("Temp: ");
-			if (temp_ok)
-			{
-				UART_print_float(temperatura, 1);
-				UART_print(" C");
-			}
-			else
-			{
-				UART_print("ERROR");
-			}
+	LCD_comando(0x28); // 4 bits, 2 lineas, fuente 5x8
+	LCD_comando(0x0C); // display encendido, cursor y blink apagados
+	LCD_comando(0x06); // el cursor avanza solo, sin desplazar la pantalla
+	LCD_comando(0x01); // limpia pantalla
+}
 
-			UART_print("  Humedad suelo: ");
-			if (riego_ok)
-			{
-				UART_print_uint(humedad_suelo);
-				UART_print("%");
-			}
-			else
-			{
-				UART_print("SIN RESPUESTA");
-			}
+void LCD_clear(void)
+{
+	LCD_comando(0x01);
+}
 
-			UART_print("  LDR: ");
-			if (clima_ok)
-			{
-				UART_print_uint(nivel_luz);
-			}
-			else
-			{
-				UART_print("SIN RESPUESTA");
-			}
-			UART_print("\r\n");
+void LCD_set_cursor(uint8_t fila, uint8_t columna)
+{
+	// En un LCD 16x2, la fila 0 empieza en 0x00 y la fila 1 en 0x40 (asi
+	// esta organizada la memoria DDRAM del HD44780, no es continua).
+	uint8_t direccion = (fila == 0) ? 0x00 : 0x40;
+	direccion += columna;
+	LCD_comando(0x80 | direccion);
+}
 
-			// Las advertencias se separan del reporte de arriba para que
-			// sea facil ubicarlas de un vistazo al ver el monitor serie.
-			if (riego_ok && bomba_activa)
-			{
-				UART_print("  [AVISO] Bomba de riego ACTIVA\r\n");
-			}
-			if (clima_ok && sombra_activa)
-			{
-				UART_print("  [AVISO] Malla de sombra DESPLEGADA\r\n");
-			}
-			if (!riego_ok)
-			{
-				UART_print("  [AVISO] Periferico de riego no contesto\r\n");
-			}
-			if (!clima_ok)
-			{
-				UART_print("  [AVISO] Periferico de clima no contesto\r\n");
-			}
-			if (!temp_ok)
-			{
-				UART_print("  [AVISO] AHT10 no contesto o seguia ocupado\r\n");
-			}
+void LCD_print(const char *str)
+{
+	while (*str)
+	{
+		LCD_enviar_byte((uint8_t)(*str), 1);
+		str++;
+	}
+}
 
-			// --- Reporte en LCD (fila de abajo, la de arriba ya quedo fija) ---
-			LCD_actualizar_sensores(temp_ok, temperatura, riego_ok, humedad_suelo, clima_ok, nivel_luz);
+void LCD_print_uint(uint16_t valor)
+{
+	char buffer[6];
+	itoa(valor, buffer, 10);
+	LCD_print(buffer);
+}
 
-			// --- Ventilacion, con la temperatura propia del master ---
-			if (temp_ok)
-			{
-				if (!ventilacion_activa && temperatura > TEMP_UMBRAL_ACTIVAR)
-				{
-					Servo_set_angle(SERVO_ANGULO_ABIERTO);
-					LED_on();
-					Relay_fan_on();
-					ventilacion_activa = 1;
-					UART_print("  [AVISO] Ventilacion ACTIVADA\r\n");
-				}
-				else if (ventilacion_activa && temperatura < TEMP_UMBRAL_DESACTIVAR)
-				{
-					Servo_set_angle(SERVO_ANGULO_REPOSO);
-					LED_off();
-					Relay_fan_off();
-					ventilacion_activa = 0;
-					UART_print("  [AVISO] Ventilacion DESACTIVADA\r\n");
-				}
-			}
-		}
+void LCD_print_int(int16_t valor)
+{
+	char buffer[7];
+	itoa(valor, buffer, 10);
+	LCD_print(buffer);
+}
+
+void LCD_print_line(uint8_t fila, const char *str)
+{
+	LCD_set_cursor(fila, 0);
+
+	uint8_t columna = 0;
+	while (str[columna] != '\0' && columna < 16)
+	{
+		LCD_enviar_byte((uint8_t)str[columna], 1);
+		columna++;
 	}
 
-	return 0;
+	// Rellena lo que sobra con espacios, para que no queden pegados
+	// caracteres de una lectura anterior mas larga.
+	while (columna < 16)
+	{
+		LCD_enviar_byte(' ', 1);
+		columna++;
+	}
 }
