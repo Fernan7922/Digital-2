@@ -2,21 +2,19 @@
 # Automatically-generated file. Do not edit or delete the file
 ################################################################################
 
-Aht10.c
+Adc.c
 
-lcd.c
+Ldr_sensor.c
 
 Led.c
 
 main.c
 
-Relay_fan.c
-
-Servo.c
+Stepper.c
 
 Timer.c
 
-Twi.c
+twi_slave.c
 
 Uart.c
 

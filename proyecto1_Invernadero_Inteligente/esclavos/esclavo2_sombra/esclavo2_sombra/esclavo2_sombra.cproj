@@ -12,9 +12,9 @@
     <OutputFileName>$(MSBuildProjectName)</OutputFileName>
     <OutputFileExtension>.elf</OutputFileExtension>
     <OutputDirectory>$(MSBuildProjectDirectory)\$(Configuration)</OutputDirectory>
-    <AssemblyName>master_I2c_lcd_uart</AssemblyName>
-    <Name>master_I2c_lcd_uart</Name>
-    <RootNamespace>master_I2c_lcd_uart</RootNamespace>
+    <AssemblyName>esclavo2_sombra</AssemblyName>
+    <Name>esclavo2_sombra</Name>
+    <RootNamespace>esclavo2_sombra</RootNamespace>
     <ToolchainFlavour>Native</ToolchainFlavour>
     <KeepTimersRunning>true</KeepTimersRunning>
     <OverrideVtor>false</OverrideVtor>
@@ -120,16 +120,16 @@
     </ToolchainSettings>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="Aht10.c">
+    <Compile Include="Adc.c">
       <SubType>compile</SubType>
     </Compile>
-    <Compile Include="Aht10.h">
+    <Compile Include="Adc.h">
       <SubType>compile</SubType>
     </Compile>
-    <Compile Include="lcd.c">
+    <Compile Include="Ldr_sensor.c">
       <SubType>compile</SubType>
     </Compile>
-    <Compile Include="lcd.h">
+    <Compile Include="Ldr_sensor.h">
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="Led.c">
@@ -141,16 +141,10 @@
     <Compile Include="main.c">
       <SubType>compile</SubType>
     </Compile>
-    <Compile Include="Relay_fan.c">
+    <Compile Include="Stepper.c">
       <SubType>compile</SubType>
     </Compile>
-    <Compile Include="Relay_fan.h">
-      <SubType>compile</SubType>
-    </Compile>
-    <Compile Include="Servo.c">
-      <SubType>compile</SubType>
-    </Compile>
-    <Compile Include="Servo.h">
+    <Compile Include="Stepper.h">
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="Timer.c">
@@ -159,10 +153,10 @@
     <Compile Include="Timer.h">
       <SubType>compile</SubType>
     </Compile>
-    <Compile Include="Twi.c">
+    <Compile Include="twi_slave.c">
       <SubType>compile</SubType>
     </Compile>
-    <Compile Include="Twi.h">
+    <Compile Include="twi_slave.h">
       <SubType>compile</SubType>
     </Compile>
     <Compile Include="Uart.c">

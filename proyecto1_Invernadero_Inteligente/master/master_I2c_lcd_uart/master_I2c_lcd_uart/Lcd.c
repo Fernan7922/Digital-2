@@ -9,6 +9,9 @@
 
 #include <avr/io.h>
 #include <avr/interrupt.h>
+#include <util/delay.h>
+#include <stdlib.h>
+#include <string.h>
 #include "twi.h"
 #include "uart.h"
 #include "timer.h"
@@ -16,6 +19,7 @@
 #include "servo.h"
 #include "led.h"
 #include "relay_fan.h"
+#include "lcd.h"
 
 // Direcciones I2C de los 2 Nano esclavos, en base al pineado del proyecto.
 #define DIR_PERIFERICO_RIEGO 0x08
@@ -33,6 +37,66 @@
 #define TEMP_UMBRAL_ACTIVAR    30.0f
 #define TEMP_UMBRAL_DESACTIVAR 28.0f
 
+// Muestra una pantalla fija por cierto tiempo y luego borra, para armar
+// la secuencia de carga inicial (splash) antes de empezar a leer sensores.
+static void Splash_mostrar(const char *linea1, const char *linea2, uint16_t duracion_ms)
+{
+	LCD_print_line(0, linea1);
+	LCD_print_line(1, linea2);
+	_delay_ms(duracion_ms);
+	LCD_clear();
+	_delay_ms(300); // pausa corta con la pantalla en blanco entre cuadro y cuadro
+}
+
+// Arma la fila de abajo del LCD con los 3 valores que ya se mandan por UART.
+// Formato compacto (sin ° ni %) porque en 16 columnas no cabe todo con
+// las unidades: "T:24 H:60 L:512"
+static void LCD_actualizar_sensores(uint8_t temp_ok, float temperatura,
+                                     uint8_t riego_ok, uint8_t humedad_suelo,
+                                     uint8_t clima_ok, uint16_t nivel_luz)
+{
+	char linea2[17];
+	char temp_str[5];
+	char hum_str[5];
+	char luz_str[6];
+
+	if (temp_ok)
+	{
+		itoa((int)(temperatura + 0.5f), temp_str, 10);
+	}
+	else
+	{
+		strcpy(temp_str, "--");
+	}
+
+	if (riego_ok)
+	{
+		itoa(humedad_suelo, hum_str, 10);
+	}
+	else
+	{
+		strcpy(hum_str, "--");
+	}
+
+	if (clima_ok)
+	{
+		itoa(nivel_luz, luz_str, 10);
+	}
+	else
+	{
+		strcpy(luz_str, "----");
+	}
+
+	strcpy(linea2, "T:");
+	strcat(linea2, temp_str);
+	strcat(linea2, " H:");
+	strcat(linea2, hum_str);
+	strcat(linea2, " L:");
+	strcat(linea2, luz_str);
+
+	LCD_print_line(1, linea2);
+}
+
 int main(void)
 {
 	UART_init();
@@ -41,10 +105,22 @@ int main(void)
 	Servo_init();
 	LED_init();
 	Relay_fan_init();
+	LCD_init();
 	sei();
 
 	UART_print("Iniciando AHT10...\r\n");
 	AHT10_init();
+
+	// --- Pantalla de carga (splash) mientras arranca todo ---
+	// Nota de FerG: ajusta textos/tiempos aqui si no es exactamente lo
+	// que querias, quedo como mejor interpretacion del mensaje de voz.
+	Splash_mostrar("Invernadero", "BE3029", 1500);
+	Splash_mostrar("Fernando", "", 1000);
+	Splash_mostrar("Chichu", "", 1000);
+
+	// La fila de arriba ya no cambia despues del splash, asi que se deja
+	// escrita una sola vez antes de entrar al loop.
+	LCD_print_line(0, "Invernadero");
 
 	uint8_t ventilacion_activa = 0;
 
@@ -77,7 +153,7 @@ int main(void)
 			uint16_t nivel_luz = ((uint16_t)datos_clima[0] << 8) | datos_clima[1];
 			uint8_t sombra_activa = datos_clima[2];
 
-			// --- Reporte por UART ---
+			// --- Reporte por UART (se deja igual, para cuando se mande al ESP32) ---
 			UART_print("Temp: ");
 			if (temp_ok)
 			{
@@ -133,6 +209,9 @@ int main(void)
 			{
 				UART_print("  [AVISO] AHT10 no contesto o seguia ocupado\r\n");
 			}
+
+			// --- Reporte en LCD (fila de abajo, la de arriba ya quedo fija) ---
+			LCD_actualizar_sensores(temp_ok, temperatura, riego_ok, humedad_suelo, clima_ok, nivel_luz);
 
 			// --- Ventilacion, con la temperatura propia del master ---
 			if (temp_ok)

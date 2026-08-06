@@ -5,9 +5,8 @@
  *  Author: ferg7
  */ 
 
-#define F_CPU 16000000UL
 #include "twi.h"
-
+#define F_CPU 16000000UL
 void TWI_init(void)
 {
 	// Se usa un prescaler de 1 (TWPS1:0 = 00 en TWSR), y con eso se calcula
@@ -70,4 +69,36 @@ uint8_t TWI_get_status(void)
 	// Los 2 bits bajos de TWSR son el prescaler, no el codigo de estado real,
 	// por eso se enmascaran antes de comparar contra las tablas del datasheet.
 	return (TWSR & 0xF8);
+}
+
+uint8_t TWI_read_from_slave(uint8_t direccion_7bits, uint8_t *buffer, uint8_t longitud)
+{
+	TWI_start();
+
+	// 0x40 es el codigo de estado para "SLA+R enviada, ACK recibido"
+	// (osea que el esclavo si contesto). Si no coincide, se cierra el
+	// bus con STOP y se avisa que esta lectura no sirvio.
+	uint8_t estado = TWI_write((direccion_7bits << 1) | 1);
+	if (estado != 0x40)
+	{
+		TWI_stop();
+		return 0;
+	}
+
+	for (uint8_t i = 0; i < longitud; i++)
+	{
+		if (i == (longitud - 1))
+		{
+			// Al ultimo byte se le manda NACK, como en cualquier lectura I2C,
+			// para que el esclavo sepa que ya no hace falta que siga mandando.
+			buffer[i] = TWI_read_nack();
+		}
+		else
+		{
+			buffer[i] = TWI_read_ack();
+		}
+	}
+
+	TWI_stop();
+	return 1;
 }
