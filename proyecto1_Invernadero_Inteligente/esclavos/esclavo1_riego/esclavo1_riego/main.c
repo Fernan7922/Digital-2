@@ -17,20 +17,8 @@
 #include "timer.h"
 #include "twi_slave.h"
 
-#define UMBRAL_HUMEDAD 40
-#define DURACION_RIEGO_MS 5000UL
-#define ENFRIAMIENTO_MS 10000UL
 #define INTERVALO_LECTURA_MS 1000UL
-
-// Direccion I2C de este nodo como esclavo, la misma que quedo asignada
-// en el documento de pineado para el periferico de riego.
 #define DIRECCION_I2C_PROPIA 0x08
-
-typedef enum
-{
-	ESTADO_IDLE,
-	ESTADO_REGANDO
-} estado_riego_t;
 
 int main(void)
 {
@@ -39,80 +27,55 @@ int main(void)
 	LED_init();
 	UART_init();
 	Timer_init();
-
-	// El TWI esclavo se inicializa antes de sei() (igual que el resto
-	// de perifericos que usan interrupciones), asi el bus ya esta listo
-	// para contestar apenas se habiliten las interrupciones globales.
 	TWI_slave_init(DIRECCION_I2C_PROPIA);
-
 	sei();
 
-	UART_print("Periferico 1 - Riego listo\r\n");
+	UART_print("Periferico 1 - Riego listo (obedece al master)\r\n");
 
-	estado_riego_t estado = ESTADO_IDLE;
+	uint8_t bomba_activa = 0;
 	uint32_t ultima_lectura = millis();
-	uint32_t inicio_riego = 0;
-	uint32_t fin_enfriamiento = 0;
 
 	while (1)
 	{
 		uint32_t ahora = millis();
 
+		// La decision de cuando regar ya no se toma aqui: el master es
+		// quien la calcula (en automatico con sus propios umbrales, o en
+		// manual con lo que llegue de Adafruit) y nos manda el resultado
+		// por I2C. Este nodo solo obedece ese ultimo comando recibido.
+		if (TWI_slave_hay_comando_nuevo())
+		{
+			bomba_activa = TWI_slave_leer_comando();
+
+			if (bomba_activa)
+			{
+				Relay_on();
+				LED_on();
+				UART_print(">> Bomba ENCENDIDA (orden del master)\r\n");
+			}
+			else
+			{
+				Relay_off();
+				LED_off();
+				UART_print(">> Bomba APAGADA (orden del master)\r\n");
+			}
+		}
+
+		// La lectura del sensor si se sigue haciendo aqui local (no tiene
+		// sentido mandarle el ADC crudo al master para que nos diga que
+		// leamos), solo que ahora unicamente reporta el dato, no decide.
 		if ((ahora - ultima_lectura) >= INTERVALO_LECTURA_MS)
 		{
 			ultima_lectura = ahora;
 
-			uint16_t crudo = Soil_read_raw();
 			int16_t porcentaje = Soil_read_percent();
 
-			UART_print("Crudo: ");
-			UART_print_int((int16_t)crudo);
-			UART_print(" | Humedad: ");
+			UART_print("Humedad: ");
 			UART_print_int(porcentaje);
 			UART_print("%\r\n");
 
-			if (estado == ESTADO_IDLE &&
-			porcentaje < UMBRAL_HUMEDAD &&
-			ahora >= fin_enfriamiento)
-			{
-				Relay_on();
-				LED_on();
-				inicio_riego = ahora;
-				estado = ESTADO_REGANDO;
-				UART_print(">> Bomba ENCENDIDA\r\n");
-			}
-
-			// Se arma el paquete que el master va a poder leer la proxima
-			// vez que pregunte por este nodo: humedad de suelo (0-100) y
-			// el estado de la bomba en ese instante. Se manda aqui, junto
-			// con la lectura, para que el dato que vea el master siempre
-			// vaya emparejado (humedad y estado tomados al mismo tiempo).
-			uint8_t paquete[2];
-			paquete[0] = (uint8_t)porcentaje;
-			paquete[1] = (estado == ESTADO_REGANDO) ? 1 : 0;
-			TWI_slave_set_buffer(paquete, 2);
-		}
-
-		if (estado == ESTADO_REGANDO)
-		{
-			if ((ahora - inicio_riego) >= DURACION_RIEGO_MS)
-			{
-				Relay_off();
-				LED_off();
-				fin_enfriamiento = ahora + ENFRIAMIENTO_MS;
-				estado = ESTADO_IDLE;
-				UART_print(">> Bomba APAGADA\r\n");
-
-				// El estado cambio fuera del bloque de lectura periodica
-				// (la bomba se apaga por tiempo, no porque se haya vuelto
-				// a leer el sensor), asi que el paquete se actualiza aqui
-				// tambien para que el master no seentere tarde de que ya
-				// se apago.
-				uint8_t paquete[2];
-				paquete[0] = (uint8_t)Soil_read_percent();
-				paquete[1] = 0;
-				TWI_slave_set_buffer(paquete, 2);
-			}
+			uint8_t dato = (uint8_t)porcentaje;
+			TWI_slave_set_buffer(&dato, 1);
 		}
 	}
 

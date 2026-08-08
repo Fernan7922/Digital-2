@@ -345,7 +345,7 @@ END GROUP
 .rela.plt
  *(.rela.plt)
 
-.text           0x00000000      0x6a4
+.text           0x00000000      0x654
  *(.vectors)
  .vectors       0x00000000       0x68 C:/Program Files (x86)/Atmel/Studio/7.0/Packs/atmel/ATmega_DFP/1.7.374/gcc/dev/atmega328p/avr5/crtatmega328p.o
                 0x00000000                __vector_default
@@ -443,84 +443,90 @@ END GROUP
                 0x000000ec                LED_on
  .text.LED_off  0x000000f4        0x8 Led.o
                 0x000000f4                LED_off
- .text.main     0x000000fc      0x140 main.o
+ .text.main     0x000000fc       0xb8 main.o
                 0x000000fc                main
  .text.Relay_init
-                0x0000023c        0xe Relay.o
-                0x0000023c                Relay_init
+                0x000001b4        0xe Relay.o
+                0x000001b4                Relay_init
  .text.Relay_on
-                0x0000024a        0x8 Relay.o
-                0x0000024a                Relay_on
+                0x000001c2        0x8 Relay.o
+                0x000001c2                Relay_on
  .text.Relay_off
-                0x00000252        0x8 Relay.o
-                0x00000252                Relay_off
- .text.mapear   0x0000025a       0x82 Soil_sensor.o
- .text.limitar  0x000002dc       0x18 Soil_sensor.o
+                0x000001ca        0x8 Relay.o
+                0x000001ca                Relay_off
+ .text.mapear   0x000001d2       0x82 Soil_sensor.o
+ .text.limitar  0x00000254       0x18 Soil_sensor.o
  .text.Soil_read_raw
-                0x000002f4        0x8 Soil_sensor.o
-                0x000002f4                Soil_read_raw
+                0x0000026c        0x8 Soil_sensor.o
+                0x0000026c                Soil_read_raw
  .text.Soil_read_percent
-                0x000002fc       0x6c Soil_sensor.o
-                0x000002fc                Soil_read_percent
+                0x00000274       0x6c Soil_sensor.o
+                0x00000274                Soil_read_percent
  .text.Timer_init
-                0x00000368       0x12 Timer.o
-                0x00000368                Timer_init
+                0x000002e0       0x12 Timer.o
+                0x000002e0                Timer_init
  .text.__vector_14
-                0x0000037a       0x4a Timer.o
-                0x0000037a                __vector_14
- .text.millis   0x000003c4       0x16 Timer.o
-                0x000003c4                millis
+                0x000002f2       0x4a Timer.o
+                0x000002f2                __vector_14
+ .text.millis   0x0000033c       0x16 Timer.o
+                0x0000033c                millis
  .text.TWI_slave_init
-                0x000003da        0xe twi_slave.o
-                0x000003da                TWI_slave_init
+                0x00000352        0xe twi_slave.o
+                0x00000352                TWI_slave_init
  .text.TWI_slave_set_buffer
-                0x000003e8       0x34 twi_slave.o
-                0x000003e8                TWI_slave_set_buffer
+                0x00000360       0x34 twi_slave.o
+                0x00000360                TWI_slave_set_buffer
+ .text.TWI_slave_hay_comando_nuevo
+                0x00000394        0x6 twi_slave.o
+                0x00000394                TWI_slave_hay_comando_nuevo
+ .text.TWI_slave_leer_comando
+                0x0000039a        0xe twi_slave.o
+                0x0000039a                TWI_slave_leer_comando
  .text.__vector_24
-                0x0000041c       0x8c twi_slave.o
-                0x0000041c                __vector_24
+                0x000003a8       0xb0 twi_slave.o
+                0x000003a8                __vector_24
  .text.UART_init
-                0x000004a8       0x18 Uart.o
-                0x000004a8                UART_init
+                0x00000458       0x18 Uart.o
+                0x00000458                UART_init
  .text.UART_transmit
-                0x000004c0        0xe Uart.o
-                0x000004c0                UART_transmit
+                0x00000470        0xe Uart.o
+                0x00000470                UART_transmit
  .text.UART_print
-                0x000004ce       0x1a Uart.o
-                0x000004ce                UART_print
+                0x0000047e       0x1a Uart.o
+                0x0000047e                UART_print
  .text.UART_print_int
-                0x000004e8       0x92 Uart.o
-                0x000004e8                UART_print_int
+                0x00000498       0x92 Uart.o
+                0x00000498                UART_print_int
  .text.libgcc.mul
-                0x0000057a       0x20 c:/program files (x86)/atmel/studio/7.0/toolchain/avr8/avr8-gnu-toolchain/bin/../lib/gcc/avr/5.4.0/avr5\libgcc.a(_mulsi3.o)
-                0x0000057a                __mulsi3
+                0x0000052a       0x20 c:/program files (x86)/atmel/studio/7.0/toolchain/avr8/avr8-gnu-toolchain/bin/../lib/gcc/avr/5.4.0/avr5\libgcc.a(_mulsi3.o)
+                0x0000052a                __mulsi3
  .text.libgcc.div
-                0x0000059a       0x28 c:/program files (x86)/atmel/studio/7.0/toolchain/avr8/avr8-gnu-toolchain/bin/../lib/gcc/avr/5.4.0/avr5\libgcc.a(_divmodhi4.o)
-                0x0000059a                _div
-                0x0000059a                __divmodhi4
+                0x0000054a       0x28 c:/program files (x86)/atmel/studio/7.0/toolchain/avr8/avr8-gnu-toolchain/bin/../lib/gcc/avr/5.4.0/avr5\libgcc.a(_divmodhi4.o)
+                0x0000054a                _div
+                0x0000054a                __divmodhi4
  .text.libgcc.div
-                0x000005c2       0x2e c:/program files (x86)/atmel/studio/7.0/toolchain/avr8/avr8-gnu-toolchain/bin/../lib/gcc/avr/5.4.0/avr5\libgcc.a(_divmodsi4.o)
-                0x000005c2                __divmodsi4
+                0x00000572       0x2e c:/program files (x86)/atmel/studio/7.0/toolchain/avr8/avr8-gnu-toolchain/bin/../lib/gcc/avr/5.4.0/avr5\libgcc.a(_divmodsi4.o)
+                0x00000572                __divmodsi4
  .text.libgcc.div
-                0x000005f0       0x10 c:/program files (x86)/atmel/studio/7.0/toolchain/avr8/avr8-gnu-toolchain/bin/../lib/gcc/avr/5.4.0/avr5\libgcc.a(_negsi2.o)
-                0x000005f0                __negsi2
+                0x000005a0       0x10 c:/program files (x86)/atmel/studio/7.0/toolchain/avr8/avr8-gnu-toolchain/bin/../lib/gcc/avr/5.4.0/avr5\libgcc.a(_negsi2.o)
+                0x000005a0                __negsi2
  .text.libgcc.mul
-                0x00000600       0x16 c:/program files (x86)/atmel/studio/7.0/toolchain/avr8/avr8-gnu-toolchain/bin/../lib/gcc/avr/5.4.0/avr5\libgcc.a(_muluhisi3.o)
-                0x00000600                __muluhisi3
+                0x000005b0       0x16 c:/program files (x86)/atmel/studio/7.0/toolchain/avr8/avr8-gnu-toolchain/bin/../lib/gcc/avr/5.4.0/avr5\libgcc.a(_muluhisi3.o)
+                0x000005b0                __muluhisi3
  .text.libgcc.div
-                0x00000616       0x28 c:/program files (x86)/atmel/studio/7.0/toolchain/avr8/avr8-gnu-toolchain/bin/../lib/gcc/avr/5.4.0/avr5\libgcc.a(_udivmodhi4.o)
-                0x00000616                __udivmodhi4
+                0x000005c6       0x28 c:/program files (x86)/atmel/studio/7.0/toolchain/avr8/avr8-gnu-toolchain/bin/../lib/gcc/avr/5.4.0/avr5\libgcc.a(_udivmodhi4.o)
+                0x000005c6                __udivmodhi4
  .text.libgcc.div
-                0x0000063e       0x44 c:/program files (x86)/atmel/studio/7.0/toolchain/avr8/avr8-gnu-toolchain/bin/../lib/gcc/avr/5.4.0/avr5\libgcc.a(_udivmodsi4.o)
-                0x0000063e                __udivmodsi4
+                0x000005ee       0x44 c:/program files (x86)/atmel/studio/7.0/toolchain/avr8/avr8-gnu-toolchain/bin/../lib/gcc/avr/5.4.0/avr5\libgcc.a(_udivmodsi4.o)
+                0x000005ee                __udivmodsi4
  .text.libgcc.mul
-                0x00000682       0x1e c:/program files (x86)/atmel/studio/7.0/toolchain/avr8/avr8-gnu-toolchain/bin/../lib/gcc/avr/5.4.0/avr5\libgcc.a(_umulhisi3.o)
-                0x00000682                __umulhisi3
-                0x000006a0                . = ALIGN (0x2)
+                0x00000632       0x1e c:/program files (x86)/atmel/studio/7.0/toolchain/avr8/avr8-gnu-toolchain/bin/../lib/gcc/avr/5.4.0/avr5\libgcc.a(_umulhisi3.o)
+                0x00000632                __umulhisi3
+                0x00000650                . = ALIGN (0x2)
  *(.fini9)
- .fini9         0x000006a0        0x0 c:/program files (x86)/atmel/studio/7.0/toolchain/avr8/avr8-gnu-toolchain/bin/../lib/gcc/avr/5.4.0/avr5\libgcc.a(_exit.o)
-                0x000006a0                _exit
-                0x000006a0                exit
+ .fini9         0x00000650        0x0 c:/program files (x86)/atmel/studio/7.0/toolchain/avr8/avr8-gnu-toolchain/bin/../lib/gcc/avr/5.4.0/avr5\libgcc.a(_exit.o)
+                0x00000650                _exit
+                0x00000650                exit
  *(.fini9)
  *(.fini8)
  *(.fini8)
@@ -539,11 +545,11 @@ END GROUP
  *(.fini1)
  *(.fini1)
  *(.fini0)
- .fini0         0x000006a0        0x4 c:/program files (x86)/atmel/studio/7.0/toolchain/avr8/avr8-gnu-toolchain/bin/../lib/gcc/avr/5.4.0/avr5\libgcc.a(_exit.o)
+ .fini0         0x00000650        0x4 c:/program files (x86)/atmel/studio/7.0/toolchain/avr8/avr8-gnu-toolchain/bin/../lib/gcc/avr/5.4.0/avr5\libgcc.a(_exit.o)
  *(.fini0)
-                0x000006a4                _etext = .
+                0x00000654                _etext = .
 
-.data           0x00800100       0x5e load address 0x000006a4
+.data           0x00800100       0x8e load address 0x00000654
                 0x00800100                PROVIDE (__data_start, .)
  *(.data)
  *(.data*)
@@ -551,32 +557,38 @@ END GROUP
  *(.rodata)
  *(.rodata*)
  .rodata.str1.1
-                0x00800100       0x5e main.o
+                0x00800100       0x8d main.o
  *(.gnu.linkonce.r*)
-                0x0080015e                . = ALIGN (0x2)
-                0x0080015e                _edata = .
-                0x0080015e                PROVIDE (__data_end, .)
+                0x0080018e                . = ALIGN (0x2)
+ *fill*         0x0080018d        0x1 
+                0x0080018e                _edata = .
+                0x0080018e                PROVIDE (__data_end, .)
 
-.bss            0x0080015e        0xa
-                0x0080015e                PROVIDE (__bss_start, .)
+.bss            0x0080018e        0xc
+                0x0080018e                PROVIDE (__bss_start, .)
  *(.bss)
  *(.bss*)
  .bss.ms_counter
-                0x0080015e        0x4 Timer.o
- .bss.indice    0x00800162        0x1 twi_slave.o
+                0x0080018e        0x4 Timer.o
+ .bss.comando_nuevo
+                0x00800192        0x1 twi_slave.o
+ .bss.comando_recibido
+                0x00800193        0x1 twi_slave.o
+ .bss.indice_tx
+                0x00800194        0x1 twi_slave.o
  .bss.buffer_longitud
-                0x00800163        0x1 twi_slave.o
- .bss.buffer    0x00800164        0x4 twi_slave.o
+                0x00800195        0x1 twi_slave.o
+ .bss.buffer    0x00800196        0x4 twi_slave.o
  *(COMMON)
-                0x00800168                PROVIDE (__bss_end, .)
-                0x000006a4                __data_load_start = LOADADDR (.data)
-                0x00000702                __data_load_end = (__data_load_start + SIZEOF (.data))
+                0x0080019a                PROVIDE (__bss_end, .)
+                0x00000654                __data_load_start = LOADADDR (.data)
+                0x000006e2                __data_load_end = (__data_load_start + SIZEOF (.data))
 
-.noinit         0x00800168        0x0
+.noinit         0x0080019a        0x0
                 [!provide]                PROVIDE (__noinit_start, .)
  *(.noinit*)
                 [!provide]                PROVIDE (__noinit_end, .)
-                0x00800168                _end = .
+                0x0080019a                _end = .
                 [!provide]                PROVIDE (__heap_start, .)
 
 .eeprom         0x00810000        0x0
@@ -648,7 +660,7 @@ END GROUP
 .debug_sfnames
  *(.debug_sfnames)
 
-.debug_aranges  0x00000000      0x178
+.debug_aranges  0x00000000      0x188
  *(.debug_aranges)
  .debug_aranges
                 0x00000000       0x28 Adc.o
@@ -663,50 +675,50 @@ END GROUP
  .debug_aranges
                 0x000000e0       0x30 Timer.o
  .debug_aranges
-                0x00000110       0x30 twi_slave.o
+                0x00000110       0x40 twi_slave.o
  .debug_aranges
-                0x00000140       0x38 Uart.o
+                0x00000150       0x38 Uart.o
 
 .debug_pubnames
  *(.debug_pubnames)
 
-.debug_info     0x00000000     0x125c
+.debug_info     0x00000000     0x11e2
  *(.debug_info .gnu.linkonce.wi.*)
  .debug_info    0x00000000      0x5f4 C:/Program Files (x86)/Atmel/Studio/7.0/Packs/atmel/ATmega_DFP/1.7.374/gcc/dev/atmega328p/avr5/crtatmega328p.o
  .debug_info    0x000005f4       0xb8 Adc.o
  .debug_info    0x000006ac       0xaf Led.o
- .debug_info    0x0000075b      0x410 main.o
- .debug_info    0x00000b6b       0xaf Relay.o
- .debug_info    0x00000c1a      0x21a Soil_sensor.o
- .debug_info    0x00000e34       0xf1 Timer.o
- .debug_info    0x00000f25      0x173 twi_slave.o
- .debug_info    0x00001098      0x1c4 Uart.o
+ .debug_info    0x0000075b      0x32e main.o
+ .debug_info    0x00000a89       0xaf Relay.o
+ .debug_info    0x00000b38      0x21a Soil_sensor.o
+ .debug_info    0x00000d52       0xf1 Timer.o
+ .debug_info    0x00000e43      0x1db twi_slave.o
+ .debug_info    0x0000101e      0x1c4 Uart.o
 
-.debug_abbrev   0x00000000      0xb69
+.debug_abbrev   0x00000000      0xb75
  *(.debug_abbrev)
  .debug_abbrev  0x00000000      0x5a2 C:/Program Files (x86)/Atmel/Studio/7.0/Packs/atmel/ATmega_DFP/1.7.374/gcc/dev/atmega328p/avr5/crtatmega328p.o
  .debug_abbrev  0x000005a2       0x7a Adc.o
  .debug_abbrev  0x0000061c       0x51 Led.o
- .debug_abbrev  0x0000066d       0xec main.o
- .debug_abbrev  0x00000759       0x51 Relay.o
- .debug_abbrev  0x000007aa      0x122 Soil_sensor.o
- .debug_abbrev  0x000008cc       0x9b Timer.o
- .debug_abbrev  0x00000967       0xea twi_slave.o
- .debug_abbrev  0x00000a51      0x118 Uart.o
+ .debug_abbrev  0x0000066d       0xc2 main.o
+ .debug_abbrev  0x0000072f       0x51 Relay.o
+ .debug_abbrev  0x00000780      0x122 Soil_sensor.o
+ .debug_abbrev  0x000008a2       0x9b Timer.o
+ .debug_abbrev  0x0000093d      0x120 twi_slave.o
+ .debug_abbrev  0x00000a5d      0x118 Uart.o
 
-.debug_line     0x00000000      0xa85
+.debug_line     0x00000000      0xa8d
  *(.debug_line .debug_line.* .debug_line_end)
  .debug_line    0x00000000      0x134 C:/Program Files (x86)/Atmel/Studio/7.0/Packs/atmel/ATmega_DFP/1.7.374/gcc/dev/atmega328p/avr5/crtatmega328p.o
  .debug_line    0x00000134       0xd8 Adc.o
  .debug_line    0x0000020c       0xd2 Led.o
- .debug_line    0x000002de      0x1f5 main.o
- .debug_line    0x000004d3       0xd4 Relay.o
- .debug_line    0x000005a7      0x123 Soil_sensor.o
- .debug_line    0x000006ca       0xf8 Timer.o
- .debug_line    0x000007c2      0x15e twi_slave.o
- .debug_line    0x00000920      0x165 Uart.o
+ .debug_line    0x000002de      0x18f main.o
+ .debug_line    0x0000046d       0xd4 Relay.o
+ .debug_line    0x00000541      0x123 Soil_sensor.o
+ .debug_line    0x00000664       0xf8 Timer.o
+ .debug_line    0x0000075c      0x1cc twi_slave.o
+ .debug_line    0x00000928      0x165 Uart.o
 
-.debug_frame    0x00000000      0x308
+.debug_frame    0x00000000      0x328
  *(.debug_frame)
  .debug_frame   0x00000000       0x34 Adc.o
  .debug_frame   0x00000034       0x44 Led.o
@@ -714,37 +726,37 @@ END GROUP
  .debug_frame   0x000000ac       0x44 Relay.o
  .debug_frame   0x000000f0       0xd8 Soil_sensor.o
  .debug_frame   0x000001c8       0x64 Timer.o
- .debug_frame   0x0000022c       0x64 twi_slave.o
- .debug_frame   0x00000290       0x78 Uart.o
+ .debug_frame   0x0000022c       0x84 twi_slave.o
+ .debug_frame   0x000002b0       0x78 Uart.o
 
-.debug_str      0x00000000      0x663
+.debug_str      0x00000000      0x66c
  *(.debug_str)
  .debug_str     0x00000000      0x208 C:/Program Files (x86)/Atmel/Studio/7.0/Packs/atmel/ATmega_DFP/1.7.374/gcc/dev/atmega328p/avr5/crtatmega328p.o
  .debug_str     0x00000208      0x18b Adc.o
                                 0x1bf (size before relaxing)
  .debug_str     0x00000393       0x23 Led.o
                                 0x1b6 (size before relaxing)
- .debug_str     0x000003b6      0x1b1 main.o
-                                0x2fd (size before relaxing)
- .debug_str     0x00000567        0xd Relay.o
+ .debug_str     0x000003b6      0x182 main.o
+                                0x2c5 (size before relaxing)
+ .debug_str     0x00000538        0xd Relay.o
                                 0x1be (size before relaxing)
- .debug_str     0x00000574       0x4e Soil_sensor.o
+ .debug_str     0x00000545       0x62 Soil_sensor.o
                                 0x22c (size before relaxing)
- .debug_str     0x000005c2       0x2a Timer.o
+ .debug_str     0x000005a7       0x2a Timer.o
                                 0x1d8 (size before relaxing)
- .debug_str     0x000005ec       0x4a twi_slave.o
-                                0x221 (size before relaxing)
- .debug_str     0x00000636       0x2d Uart.o
+ .debug_str     0x000005d1       0x6e twi_slave.o
+                                0x27c (size before relaxing)
+ .debug_str     0x0000063f       0x2d Uart.o
                                 0x20a (size before relaxing)
 
-.debug_loc      0x00000000      0x781
+.debug_loc      0x00000000      0x6a1
  *(.debug_loc)
  .debug_loc     0x00000000       0x21 Adc.o
- .debug_loc     0x00000021      0x19c main.o
- .debug_loc     0x000001bd      0x2ef Soil_sensor.o
- .debug_loc     0x000004ac       0x63 Timer.o
- .debug_loc     0x0000050f       0xea twi_slave.o
- .debug_loc     0x000005f9      0x188 Uart.o
+ .debug_loc     0x00000021       0xa6 main.o
+ .debug_loc     0x000000c7      0x2ef Soil_sensor.o
+ .debug_loc     0x000003b6       0x63 Timer.o
+ .debug_loc     0x00000419      0x100 twi_slave.o
+ .debug_loc     0x00000519      0x188 Uart.o
 
 .debug_macinfo
  *(.debug_macinfo)
@@ -764,7 +776,7 @@ END GROUP
 .debug_pubtypes
  *(.debug_pubtypes)
 
-.debug_ranges   0x00000000       0xf8
+.debug_ranges   0x00000000      0x108
  *(.debug_ranges)
  .debug_ranges  0x00000000       0x18 Adc.o
  .debug_ranges  0x00000018       0x20 Led.o
@@ -772,8 +784,8 @@ END GROUP
  .debug_ranges  0x00000048       0x20 Relay.o
  .debug_ranges  0x00000068       0x28 Soil_sensor.o
  .debug_ranges  0x00000090       0x20 Timer.o
- .debug_ranges  0x000000b0       0x20 twi_slave.o
- .debug_ranges  0x000000d0       0x28 Uart.o
+ .debug_ranges  0x000000b0       0x30 twi_slave.o
+ .debug_ranges  0x000000e0       0x28 Uart.o
 
 .debug_macro
  *(.debug_macro)

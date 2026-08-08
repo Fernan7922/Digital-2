@@ -12,18 +12,19 @@
 #include <avr/io.h>
 #include <stdint.h>
 
-// Tamano maximo de datos que este nodo puede entregar en una sola lectura
-// del master. 4 bytes alcanza de sobra para lo que manda cada periferico
-// de este proyecto (riego usa 2, clima usa 3).
 #define TWI_SLAVE_MAX_BUFFER 4
 
-// direccion_7bits es la direccion I2C del propio nodo (0x08, 0x09, etc.),
-// la misma que quedo asignada en el documento de pineado.
 void TWI_slave_init(uint8_t direccion_7bits);
 
-// Se llama cada vez que el nodo termina de leer sus sensores, para dejar
-// listos los bytes que se entregaran la proxima vez que el master pregunte.
-// No manda nada por si solo: el maestro es quien decide cuando leer.
+// Se llama cada vez que el nodo termina de leer su sensor, para dejar
+// listos los bytes que se entregaran la proxima vez que el master pida
+// datos (modo transmisor del esclavo).
 void TWI_slave_set_buffer(const uint8_t *datos, uint8_t longitud);
+
+// El master ahora tambien nos puede escribir un byte de comando (modo
+// receptor del esclavo). Estas 2 funciones son la forma de que el loop
+// principal se entere de eso, sin tener que tocar nada dentro del ISR.
+uint8_t TWI_slave_hay_comando_nuevo(void);
+uint8_t TWI_slave_leer_comando(void);
 
 #endif
