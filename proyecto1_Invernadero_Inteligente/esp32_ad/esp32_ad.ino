@@ -14,8 +14,8 @@
 
 #include "AdafruitIO_WiFi.h"
 
-#define WIFI_SSID "SOMOZA NETWORK"
-#define WIFI_PASS "4D9697504328"
+#define WIFI_SSID "ChiFlip Z6"
+#define WIFI_PASS "unoalocho"
 
 #define IO_USERNAME "Ferg7922"
 #define IO_KEY "aio_cVkI79zl3uVLZ1Wfpwzx30sujTeG"
