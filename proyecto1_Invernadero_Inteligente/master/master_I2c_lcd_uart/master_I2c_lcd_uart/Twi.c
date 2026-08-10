@@ -1,12 +1,5 @@
-/*
- * Twi.c
- *
- * Created: 30/07/2026 01:11:12
- *  Author: ferg7
- */ 
 #include "twi.h"
 #define F_CPU 16000000UL
-
 void TWI_init(void)
 {
 	TWSR &= ~((1 << TWPS1) | (1 << TWPS0));
@@ -75,25 +68,6 @@ uint8_t TWI_read_from_slave(uint8_t direccion_7bits, uint8_t *buffer, uint8_t lo
 		}
 	}
 
-	TWI_stop();
-	return 1;
-}
-
-uint8_t TWI_write_to_slave(uint8_t direccion_7bits, uint8_t dato)
-{
-	TWI_start();
-
-	// 0x18 es el estado para "SLA+W enviada, ACK recibido". Si el
-	// esclavo no contesta (por ejemplo si todavia no arranca), se cierra
-	// el bus y se avisa que este comando no se pudo entregar.
-	uint8_t estado = TWI_write((direccion_7bits << 1) | 0);
-	if (estado != 0x18)
-	{
-		TWI_stop();
-		return 0;
-	}
-
-	TWI_write(dato);
 	TWI_stop();
 	return 1;
 }

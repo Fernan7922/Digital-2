@@ -1,12 +1,4 @@
-/*
- * esclavo1_riego.c
- *
- * Created: 30/07/2026 15:08:13
- * Author : ferg7
- */ 
-
 #define F_CPU 16000000UL
-
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include "adc.h"
@@ -17,8 +9,21 @@
 #include "timer.h"
 #include "twi_slave.h"
 
+#define UMBRAL_HUMEDAD 40
+#define DURACION_RIEGO_MS 5000UL
+#define ENFRIAMIENTO_MS 10000UL
 #define INTERVALO_LECTURA_MS 1000UL
 #define DIRECCION_I2C_PROPIA 0x08
+
+#define CMD_ACTUADOR_APAGAR 0x00
+#define CMD_ACTUADOR_ENCENDER 0x01
+#define CMD_ACTUADOR_AUTO 0x02
+
+typedef enum
+{
+	ESTADO_IDLE,
+	ESTADO_REGANDO
+} estado_riego_t;
 
 int main(void)
 {
@@ -29,55 +34,103 @@ int main(void)
 	Timer_init();
 	TWI_slave_init(DIRECCION_I2C_PROPIA);
 	sei();
-
-	UART_print("Periferico 1 - Riego listo (obedece al master)\r\n");
-
-	uint8_t bomba_activa = 0;
+	UART_print("Periferico 1 - Riego listo\r\n");
+	
+	estado_riego_t estado = ESTADO_IDLE;
 	uint32_t ultima_lectura = millis();
+	uint32_t inicio_riego = 0;
+	uint32_t fin_enfriamiento = 0;
+
+	uint8_t modo_manual = 0;
+	uint8_t bomba_manual_on = 0;
 
 	while (1)
 	{
 		uint32_t ahora = millis();
 
-		// La decision de cuando regar ya no se toma aqui: el master es
-		// quien la calcula (en automatico con sus propios umbrales, o en
-		// manual con lo que llegue de Adafruit) y nos manda el resultado
-		// por I2C. Este nodo solo obedece ese ultimo comando recibido.
-		if (TWI_slave_hay_comando_nuevo())
+		if (TWI_slave_hay_comando())
 		{
-			bomba_activa = TWI_slave_leer_comando();
+			uint8_t comando = TWI_slave_leer_comando();
 
-			if (bomba_activa)
+			if (comando == CMD_ACTUADOR_AUTO)
 			{
-				Relay_on();
-				LED_on();
-				UART_print(">> Bomba ENCENDIDA (orden del master)\r\n");
+				if (modo_manual)
+				{
+					Relay_off();
+					LED_off();
+					estado = ESTADO_IDLE;
+					fin_enfriamiento = 0;
+					UART_print("Modo AUTOMATICO\r\n");
+				}
+				modo_manual = 0;
 			}
-			else
+			else if (comando == CMD_ACTUADOR_ENCENDER || comando == CMD_ACTUADOR_APAGAR)
 			{
-				Relay_off();
-				LED_off();
-				UART_print(">> Bomba APAGADA (orden del master)\r\n");
+				modo_manual = 1;
+				bomba_manual_on = (comando == CMD_ACTUADOR_ENCENDER);
+
+				if (bomba_manual_on)
+				{
+					Relay_on();
+					LED_on();
+					UART_print("Modo MANUAL - Bomba ENCENDIDA\r\n");
+				}
+				else
+				{
+					Relay_off();
+					LED_off();
+					UART_print("Modo MANUAL - Bomba APAGADA\r\n");
+				}
 			}
 		}
 
-		// La lectura del sensor si se sigue haciendo aqui local (no tiene
-		// sentido mandarle el ADC crudo al master para que nos diga que
-		// leamos), solo que ahora unicamente reporta el dato, no decide.
 		if ((ahora - ultima_lectura) >= INTERVALO_LECTURA_MS)
 		{
 			ultima_lectura = ahora;
-
+			uint16_t crudo = Soil_read_raw();
 			int16_t porcentaje = Soil_read_percent();
-
-			UART_print("Humedad: ");
+			UART_print("Crudo: ");
+			UART_print_int((int16_t)crudo);
+			UART_print(" | Humedad: ");
 			UART_print_int(porcentaje);
 			UART_print("%\r\n");
 
-			uint8_t dato = (uint8_t)porcentaje;
-			TWI_slave_set_buffer(&dato, 1);
+			if (!modo_manual)
+			{
+				if (estado == ESTADO_IDLE &&
+				porcentaje < UMBRAL_HUMEDAD &&
+				ahora >= fin_enfriamiento)
+				{
+					Relay_on();
+					LED_on();
+					inicio_riego = ahora;
+					estado = ESTADO_REGANDO;
+					UART_print(">> Bomba ENCENDIDA\r\n");
+				}
+			}
+
+			uint8_t paquete[2];
+			paquete[0] = (uint8_t)porcentaje;
+			paquete[1] = modo_manual ? bomba_manual_on : (estado == ESTADO_REGANDO);
+			TWI_slave_set_buffer(paquete, 2);
+		}
+
+		if (!modo_manual && estado == ESTADO_REGANDO)
+		{
+			if ((ahora - inicio_riego) >= DURACION_RIEGO_MS)
+			{
+				Relay_off();
+				LED_off();
+				fin_enfriamiento = ahora + ENFRIAMIENTO_MS;
+				estado = ESTADO_IDLE;
+				UART_print(">> Bomba APAGADA\r\n");
+				
+				uint8_t paquete[2];
+				paquete[0] = (uint8_t)Soil_read_percent();
+				paquete[1] = 0;
+				TWI_slave_set_buffer(paquete, 2);
+			}
 		}
 	}
-
 	return 0;
 }

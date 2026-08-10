@@ -14,30 +14,34 @@
  *
  * Author : ferg7
  */
-#ifndef LCD_H
-#define LCD_H
 
-#include <avr/io.h>
+#ifndef LCD_H_
+#define LCD_H_
+
 #include <stdint.h>
 
-// LCD 16x2 en modo paralelo de 4 bits, con el pineado ya definido del
-// proyecto: RS=D8, EN=D9, D4=D10, D5=D11, D6=D12, D7=D13. Los 6 pines
-// caen todos en PORTB (D8-D13 = PB0-PB5 en el Nano).
-#define LCD_DDR   DDRB
-#define LCD_PORT  PORTB
-#define LCD_RS    PB0
-#define LCD_EN    PB1
-#define LCD_D4    PB2
-#define LCD_D5    PB3
-#define LCD_D6    PB4
-#define LCD_D7    PB5
-
+// Inicializa el LCD (modo 4 bits, 2 lineas, cursor apagado).
 void LCD_init(void);
-void LCD_clear(void);
-void LCD_set_cursor(uint8_t fila, uint8_t columna);
-void LCD_print(const char *str);
-void LCD_print_char(uint8_t caracter);
-void LCD_print_int(int16_t num);
-void LCD_clear_line(uint8_t fila);
 
-#endif
+// Borra toda la pantalla y regresa el cursor a la posicion inicial.
+void LCD_clear(void);
+
+// Mueve el cursor a una fila (0 o 1) y columna (0-15).
+void LCD_set_cursor(uint8_t fila, uint8_t columna);
+
+// Imprime un string en la posicion actual del cursor, tal cual (sin rellenar
+// el resto de la fila).
+void LCD_print(const char *str);
+
+// Imprime un numero sin signo en la posicion actual del cursor.
+void LCD_print_uint(uint16_t valor);
+
+// Imprime un numero con signo en la posicion actual del cursor.
+void LCD_print_int(int16_t valor);
+
+// Escribe un string completo en una fila (0 o 1), rellenando con espacios
+// el resto de las 16 columnas. Util para que no queden caracteres viejos
+// pegados cuando el nuevo texto es mas corto que el anterior.
+void LCD_print_line(uint8_t fila, const char *str);
+
+#endif /* LCD_H_ */
