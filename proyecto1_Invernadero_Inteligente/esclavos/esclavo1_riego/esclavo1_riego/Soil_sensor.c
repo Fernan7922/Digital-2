@@ -30,7 +30,7 @@ int16_t Soil_read_percent(void)
 {
 	uint16_t crudo = Soil_read_raw();
 
-	// Mismo mapeo que en tu ejemplo: VALOR_SECO -> 0%, VALOR_HUMEDO -> 100%.
+	// Mismo mapeo que en ejemplo: VALOR_SECO -> 0%, VALOR_HUMEDO -> 100%.
 	int16_t porcentaje = (int16_t)mapear(crudo, VALOR_SECO, VALOR_HUMEDO, 0, 100);
 
 	return limitar(porcentaje, 0, 100);
