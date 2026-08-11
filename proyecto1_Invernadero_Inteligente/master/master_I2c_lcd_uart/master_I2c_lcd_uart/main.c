@@ -1,3 +1,16 @@
+/*
+ *  Nano Master
+ *
+ * Proyecto Invernadero - BE3029 Electronica Digital 2
+ * Juan Daniel Sandoval 24209 y Fernando Guzman 24734
+ *
+ * Este es el nodo maestro del invernadero: lee su propio sensor AHT10
+ * (temperatura), le pregunta por I2C a los 2 Nano perifericos (humedad
+ * de suelo y nivel de luz), decide si hay que regar, dar sombra o
+ * ventilar (o deja que Adafruit IO lo decida en modo manual), y muestra
+ * todo en el LCD y por UART hacia el ESP32.
+ */
+
 #define F_CPU 16000000UL
 
 #include <avr/io.h>
@@ -14,28 +27,45 @@
 #include "relay_fan.h"
 #include "lcd.h"
 
+// Direcciones I2C de los 2 Nano esclavos, las mismas que quedaron
+// asignadas en el documento de pineado del proyecto.
 #define DIR_PERIFERICO_RIEGO 0x08
 #define DIR_PERIFERICO_CLIMA 0x09
 
+// Cuantos bytes manda cada periferico cuando el master lo lee.
 #define LONGITUD_PAQUETE_RIEGO 2
 #define LONGITUD_PAQUETE_CLIMA 3
 
+// Umbrales de temperatura para la ventilacion en modo automatico.
+// Se usan 2 (no 1 solo) para tener histeresis: hace falta subir hasta
+// el de activar para prender, y bajar hasta el de desactivar para
+// apagar, asi no esta prendiendo y apagando en cada lectura si la
+// temperatura anda pegada al limite.
 #define TEMP_UMBRAL_ACTIVAR    30.0f
 #define TEMP_UMBRAL_DESACTIVAR 28.0f
 
-// Comandos I2C para los periféricos
+// Comandos que se le mandan a cada periferico por I2C. AUTO le dice al
+// periferico que siga decidiendo solo con su propio sensor (asi el modo
+// automatico no cambia en nada de como ya funcionaba antes); ENCENDER y
+// APAGAR son ordenes directas que solo se obedecen cuando el modo
+// manual esta activo.
 #define CMD_ACTUADOR_APAGAR   0x00
 #define CMD_ACTUADOR_ENCENDER 0x01
 #define CMD_ACTUADOR_AUTO     0x02
 
 #define TAM_BUFFER_RX_COMANDO 32
 
+// Espera basada en el timer, para las pantallas de arranque del LCD.
+// No es una espera de sensor, pero mientras se muestran esas pantallas
+// no hay nada mas que hacer, asi que aqui si se deja correr de corrido.
 static void wait_boot(uint32_t ms)
 {
 	uint32_t inicio = millis();
 	while ((millis() - inicio) < ms);
 }
 
+// Secuencia de arranque del LCD: se presenta el proyecto y el equipo
+// antes de pasar a la pantalla de monitoreo normal.
 static void mostrar_boot(void)
 {
 	LCD_set_cursor(0, 0);
@@ -59,7 +89,12 @@ static void mostrar_boot(void)
 	LCD_print("Invernadero");
 }
 
-// Escritura simple por I2C con protección de timeouts para evitar congelamientos
+// Manda 1 solo comando (direccion + 1 byte) a un periferico, siguiendo
+// la misma secuencia START -> direccion -> dato -> STOP de siempre, pero
+// con un contador de timeout en cada paso: si el bus se queda pegado
+// esperando TWINT (por ejemplo porque el periferico se desconecto o
+// esta reiniciandose), se suelta el TWI y se regresa "fallo" en vez de
+// dejar el programa colgado ahi para siempre.
 static uint8_t I2C_enviar_comando(uint8_t direccion, uint8_t comando)
 {
 	uint32_t timeout;
@@ -117,7 +152,13 @@ static uint8_t I2C_enviar_comando(uint8_t direccion, uint8_t comando)
 	return confirmado;
 }
 
-// Transmite los estados actuales de forma segura espaciando los envíos
+// Arma el comando que le toca a cada actuador segun el modo actual, y
+// lo manda a los 2 perifericos. En automatico se manda CMD_ACTUADOR_AUTO
+// (el periferico usa su propio sensor); en manual se manda ENCENDER o
+// APAGAR segun lo que haya llegado de Adafruit. Se deja una pausa entre
+// un periferico y otro porque mandar los 2 comandos pegados, uno justo
+// despues del otro, le da menos tiempo al bus de asentarse entre
+// transacciones.
 static void transmitir_estados_I2C(uint8_t modo_manual, uint8_t cmd_bomba, uint8_t cmd_sombra)
 {
 	uint8_t comando_para_bomba = modo_manual
@@ -134,7 +175,9 @@ static void transmitir_estados_I2C(uint8_t modo_manual, uint8_t cmd_bomba, uint8
 	I2C_enviar_comando(DIR_PERIFERICO_CLIMA, comando_para_sombra);
 }
 
-// Procesa la línea de comando recibida por UART
+// Traduce la linea de texto que manda el ESP32 (que a su vez viene de
+// los botones de Adafruit IO) a las variables de modo y de cada
+// actuador. El formato es sencillo a proposito: "ETIQUETA:VALOR".
 static void procesarComando(const char *linea, uint8_t *modo_manual,
 uint8_t *cmd_bomba, uint8_t *cmd_sombra,
 uint8_t *cmd_ventilacion)
@@ -151,6 +194,8 @@ uint8_t *cmd_ventilacion)
 
 int main(void)
 {
+	// Se inicializan primero los perifericos que no dependen de
+	// interrupciones, y hasta el final se habilitan con sei().
 	UART_init();
 	TWI_init();
 	Timer_init();
@@ -167,6 +212,8 @@ int main(void)
 
 	uint8_t ventilacion_activa = 0;
 
+	// Variables de modo y de cada actuador manual. Arrancan en
+	// automatico y todo apagado, hasta que llegue una orden de Adafruit.
 	uint8_t modo_manual = 0;
 	uint8_t cmd_bomba = 0;
 	uint8_t cmd_sombra = 0;
@@ -177,13 +224,18 @@ int main(void)
 
 	while (1)
 	{
+		// Los comandos de Adafruit se revisan en cada vuelta del loop
+		// (no solo cada 2s), para que un cambio de modo o de un
+		// actuador se aplique de inmediato y no hasta la siguiente
+		// ronda de lecturas.
 		if (UART_hay_linea())
 		{
 			char linea_comando[TAM_BUFFER_RX_COMANDO];
 			UART_leer_linea(linea_comando, sizeof(linea_comando));
 			procesarComando(linea_comando, &modo_manual, &cmd_bomba, &cmd_sombra, &cmd_ventilacion);
 			
-			// Envío instantáneo tras procesar comando
+			// En cuanto se procesa el comando se manda de una vez a los
+			// perifericos, sin esperar al envio periodico de mas abajo.
 			transmitir_estados_I2C(modo_manual, cmd_bomba, cmd_sombra);
 		}
 
@@ -209,6 +261,9 @@ int main(void)
 			uint8_t sombra_activa = datos_clima[2];
 
 			// --- Reporte por UART ---
+			// Este es el texto que el ESP32 lee del otro lado y sube a
+			// Adafruit IO, por eso el formato ("Temp: ... Humedad
+			// suelo: ... LDR: ...") no se puede cambiar libremente.
 			UART_print("Temp: ");
 			if (temp_ok)
 			{
@@ -242,6 +297,8 @@ int main(void)
 			}
 			UART_print("\r\n");
 
+			// Avisos aparte del reporte principal, para que sea facil
+			// ubicarlos de un vistazo en el monitor serie.
 			if (riego_ok && bomba_activa)
 			{
 				UART_print("  [AVISO] Bomba de riego ACTIVA\r\n");
@@ -252,6 +309,9 @@ int main(void)
 			}
 
 			// --- Ventilacion ---
+			// En manual, la orden de Adafruit manda directo. En
+			// automatico, se usa la temperatura del AHT10 con los 2
+			// umbrales de arriba (histeresis), igual que siempre.
 			if (modo_manual)
 			{
 				if (cmd_ventilacion && !ventilacion_activa)
@@ -291,10 +351,17 @@ int main(void)
 				}
 			}
 
-			// Envío periódico de respaldo
+			// Se vuelve a mandar el estado a los perifericos aqui
+			// tambien (ademas de cuando llega un comando nuevo), como
+			// respaldo por si algun periferico se perdio el envio
+			// anterior (por ejemplo si se reinicio a la mitad).
 			transmitir_estados_I2C(modo_manual, cmd_bomba, cmd_sombra);
 
 			// --- Pantalla LCD ---
+			// Se arma toda la fila de abajo en un buffer y se manda de
+			// una sola vez, para que LCD_print_line rellene con
+			// espacios lo que sobre y no queden caracteres de una
+			// lectura anterior mas larga pegados al final.
 			char linea2[30];
 			char numero_temp[7];
 
