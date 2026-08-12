@@ -2,7 +2,8 @@
  * Uart.h
  *
  * Created: 1/08/2026 02:01:11
- *  Author: ferg7
+*  Proyecto Invernadero - BE3029 Electronica Digital 2
+* Juan Daniel Sandoval 24209 y Fernando Guzman 24734
  */ 
 
 

@@ -5,14 +5,15 @@
  *
  * Driver bare-metal para LCD 16x2 (HD44780) en modo 4 bits.
  * Pineado segun el documento de pineado del invernadero (Nano Master):
- *   RS -> D8   (PB0)
- *   EN -> D9   (PB1)
- *   D4 -> D10  (PB2)
- *   D5 -> D11  (PB3)
- *   D6 -> D12  (PB4)
- *   D7 -> D13  (PB5)
+ *   RS  D8   (PB0)
+ *   EN  D9   (PB1)
+ *   D4  D10  (PB2)
+ *   D5  D11  (PB3)
+ *   D6  D12  (PB4)
+ *   D7  D13  (PB5)
  *
- * Author : ferg7
+ *  Proyecto Invernadero - BE3029 Electronica Digital 2
+ * Juan Daniel Sandoval 24209 y Fernando Guzman 24734
  */
 
 #ifndef LCD_H_

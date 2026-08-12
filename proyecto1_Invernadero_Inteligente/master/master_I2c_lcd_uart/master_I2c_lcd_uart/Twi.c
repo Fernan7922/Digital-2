@@ -1,3 +1,5 @@
+*  Proyecto Invernadero - BE3029 Electronica Digital 2
+* Juan Daniel Sandoval 24209 y Fernando Guzman 24734
 #include "twi.h"
 #define F_CPU 16000000UL
 void TWI_init(void)

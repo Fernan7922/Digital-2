@@ -2,7 +2,8 @@
  * Relay_fan.h
  *
  * Created: 1/08/2026 03:02:20
- *  Author: ferg7
+*  Proyecto Invernadero - BE3029 Electronica Digital 2
+* Juan Daniel Sandoval 24209 y Fernando Guzman 24734
  */ 
 
 
@@ -10,11 +11,10 @@
 #define RELAY_FAN_H
 
 #include <avr/io.h>
-
-// Relay del ventilador: A0 = PC0. Este modulo de relay es ACTIVO EN BAJO,
+//Este es usado para cuestiones de prueba del pulso hacia el relé-
+// Relay del ventilador: Este modulo de relay es ACTIVO EN BAJO,
 // (0 logico = relay cerrado = ventilador prendido), al reves que el de
-// la bomba del Periferico 1. Por eso Relay_fan_init() arranca el pin en
-// ALTO (ventilador apagado) y no en bajo.
+// la bomba del Periferico 1. 
 #define RELAY_FAN_DDR  DDRC
 #define RELAY_FAN_PORT PORTC
 #define RELAY_FAN_PIN  PC0

@@ -2,7 +2,8 @@
  * Servo.c
  *
  * Created: 1/08/2026 02:59:26
- *  Author: ferg7
+ *    Proyecto Invernadero - BE3029 Electronica Digital 2
+ * Juan Daniel Sandoval 24209 y Fernando Guzman 24734
  */ 
 #include "servo.h"
 #include <avr/interrupt.h>
@@ -10,7 +11,7 @@
 // El servo necesita un pulso cada 20ms, con un ancho de 1-2ms segun el
 // angulo deseado. Se usa el Timer1 (16 bits) en modo CTC con 2 registros
 // de comparacion:
-//   OCR1A = marca el final del periodo completo (20ms) -> ahi se prende
+//   OCR1A = marca el final del periodo completo (20ms)  ahi se prende
 //           el pin y el timer se reinicia solo (por ser el TOP del CTC).
 //   OCR1B = marca cuando ya paso el ancho de pulso que toca -> ahi se
 //           apaga el pin.

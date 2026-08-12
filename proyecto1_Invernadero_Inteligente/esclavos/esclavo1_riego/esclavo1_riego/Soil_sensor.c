@@ -2,7 +2,8 @@
  * Soil_sensor.c
  *
  * Created: 30/07/2026 15:10:51
- *  Author: ferg7
+*  Proyecto Invernadero - BE3029 Electronica Digital 2
+* Juan Daniel Sandoval 24209 y Fernando Guzman 24734
  */ 
 #include "soil_sensor.h"
 #include "adc.h"

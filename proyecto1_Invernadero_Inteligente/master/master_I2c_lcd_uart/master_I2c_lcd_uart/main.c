@@ -81,7 +81,7 @@ static void mostrar_boot(void)
 
 	LCD_clear();
 	LCD_set_cursor(0, 0);
-	LCD_print("Chichu");
+	LCD_print("Juan");
 	wait_boot(1500);
 
 	LCD_clear();

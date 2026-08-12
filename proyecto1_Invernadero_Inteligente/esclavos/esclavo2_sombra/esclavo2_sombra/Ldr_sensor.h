@@ -2,7 +2,8 @@
  * Ldr_sensor.h
  *
  * Created: 1/08/2026 01:54:16
- *  Author: ferg7
+ *  Proyecto Invernadero - BE3029 Electronica Digital 2
+ * Juan Daniel Sandoval 24209 y Fernando Guzman 24734
  */ 
 
 #ifndef LDR_SENSOR_H
@@ -29,8 +30,8 @@
 // abajo del numero de "mucha luz", y el de desactivar un poco abajo de
 // ese, dejando un rango entre los 2 (no pegados) para que no este
 // prendiendo y apagando el motor en cada lectura.
-#define LDR_UMBRAL_ACTIVAR    50   // por ARRIBA de este valor -> activa sombra
-#define LDR_UMBRAL_DESACTIVAR 20   // por DEBAJO de este valor -> retrae sombra
+#define LDR_UMBRAL_ACTIVAR    50   // por ARRIBA de este valor se activa sombra
+#define LDR_UMBRAL_DESACTIVAR 20   // por DEBAJO de este valor se retrae sombra
 // =====================================================================
 
 uint16_t LDR_read_raw(void);

@@ -2,7 +2,9 @@
  * Aht10.c
  *
  * Created: 30/07/2026 01:13:20
- *  Author: ferg7
+ *  Proyecto Invernadero - BE3029 Electronica Digital 2
+
+ * Juan Daniel Sandoval 24209 y Fernando Guzman 24734
  */ 
 
 #include "aht10.h"

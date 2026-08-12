@@ -23,11 +23,11 @@ Idx Name          Size      VMA       LMA       File off  Algn
                   CONTENTS, READONLY, DEBUGGING
   9 .debug_frame  00000328  00000000  00000000  00003550  2**2
                   CONTENTS, READONLY, DEBUGGING
- 10 .debug_str    000006cf  00000000  00000000  00003878  2**0
+ 10 .debug_str    00000656  00000000  00000000  00003878  2**0
                   CONTENTS, READONLY, DEBUGGING
- 11 .debug_loc    00000844  00000000  00000000  00003f47  2**0
+ 11 .debug_loc    00000844  00000000  00000000  00003ece  2**0
                   CONTENTS, READONLY, DEBUGGING
- 12 .debug_ranges 00000108  00000000  00000000  0000478b  2**0
+ 12 .debug_ranges 00000108  00000000  00000000  00004712  2**0
                   CONTENTS, READONLY, DEBUGGING
 
 Disassembly of section .text:
@@ -101,13 +101,30 @@ Disassembly of section .text:
   a2:	0c 94 00 00 	jmp	0	; 0x0 <__vectors>
 
 000000a6 <ADC_init>:
+#include "adc.h"
+
+void ADC_init(void)
+{
+	// REFS0 = 1: se usa AVCC (5V) como voltaje de referencia del ADC.
+	ADMUX = (1 << REFS0);
   a6:	80 e4       	ldi	r24, 0x40	; 64
   a8:	80 93 7c 00 	sts	0x007C, r24	; 0x80007c <__TEXT_REGION_LENGTH__+0x7f807c>
+
+	// ADEN habilita el modulo. El prescaler de 128 (ADPS2:0 = 111) deja
+	// el reloj del ADC en 16MHz/128 = 125kHz, dentro del rango de 50-200kHz
+	// que recomienda el datasheet para no perder precision.
+	ADCSRA = (1 << ADEN) | (1 << ADPS2) | (1 << ADPS1) | (1 << ADPS0);
   ac:	87 e8       	ldi	r24, 0x87	; 135
   ae:	80 93 7a 00 	sts	0x007A, r24	; 0x80007a <__TEXT_REGION_LENGTH__+0x7f807a>
   b2:	08 95       	ret
 
 000000b4 <ADC_read>:
+
+uint16_t ADC_read(uint8_t canal)
+{
+	// Se limpian los bits de canal (MUX3:0) y se selecciona el nuevo,
+	// sin tocar el bit REFS0 que ya se configuro en ADC_init().
+	ADMUX = (ADMUX & 0xF0) | (canal & 0x0F);
   b4:	ec e7       	ldi	r30, 0x7C	; 124
   b6:	f0 e0       	ldi	r31, 0x00	; 0
   b8:	90 81       	ld	r25, Z
@@ -115,34 +132,59 @@ Disassembly of section .text:
   bc:	8f 70       	andi	r24, 0x0F	; 15
   be:	89 2b       	or	r24, r25
   c0:	80 83       	st	Z, r24
+
+	// ADSC en 1 dispara una conversion; el hardware lo pone en 0 solo
+	// cuando termina, asi que se espera a que eso pase.
+	ADCSRA |= (1 << ADSC);
   c2:	ea e7       	ldi	r30, 0x7A	; 122
   c4:	f0 e0       	ldi	r31, 0x00	; 0
   c6:	80 81       	ld	r24, Z
   c8:	80 64       	ori	r24, 0x40	; 64
   ca:	80 83       	st	Z, r24
+	while (ADCSRA & (1 << ADSC));
   cc:	80 91 7a 00 	lds	r24, 0x007A	; 0x80007a <__TEXT_REGION_LENGTH__+0x7f807a>
   d0:	86 fd       	sbrc	r24, 6
   d2:	fc cf       	rjmp	.-8      	; 0xcc <ADC_read+0x18>
+
+	// ADC es el registro de 16 bits que junta ADCL y ADCH automaticamente.
+	return ADC;
   d4:	80 91 78 00 	lds	r24, 0x0078	; 0x800078 <__TEXT_REGION_LENGTH__+0x7f8078>
   d8:	90 91 79 00 	lds	r25, 0x0079	; 0x800079 <__TEXT_REGION_LENGTH__+0x7f8079>
   dc:	08 95       	ret
 
 000000de <LED_init>:
+ */ 
+#include "led.h"
+
+void LED_init(void)
+{
+	LED_DDR |= (1 << LED_PIN);
   de:	8a b1       	in	r24, 0x0a	; 10
   e0:	80 61       	ori	r24, 0x10	; 16
   e2:	8a b9       	out	0x0a, r24	; 10
+	LED_PORT &= ~(1 << LED_PIN);
   e4:	8b b1       	in	r24, 0x0b	; 11
   e6:	8f 7e       	andi	r24, 0xEF	; 239
   e8:	8b b9       	out	0x0b, r24	; 11
   ea:	08 95       	ret
 
 000000ec <LED_on>:
+}
+
+void LED_on(void)
+{
+	LED_PORT |= (1 << LED_PIN);
   ec:	8b b1       	in	r24, 0x0b	; 11
   ee:	80 61       	ori	r24, 0x10	; 16
   f0:	8b b9       	out	0x0b, r24	; 11
   f2:	08 95       	ret
 
 000000f4 <LED_off>:
+}
+
+void LED_off(void)
+{
+	LED_PORT &= ~(1 << LED_PIN);
   f4:	8b b1       	in	r24, 0x0b	; 11
   f6:	8f 7e       	andi	r24, 0xEF	; 239
   f8:	8b b9       	out	0x0b, r24	; 11
@@ -187,17 +229,18 @@ int main(void)
  12e:	0e 94 21 02 	call	0x442	; 0x442 <millis>
  132:	4b 01       	movw	r8, r22
  134:	5c 01       	movw	r10, r24
-	uint32_t inicio_riego = 0;
 	uint32_t fin_enfriamiento = 0;
 
+	// Arranca en automatico (modo_manual = 0) hasta que llegue una
+	// orden del Master que diga lo contrario.
 	uint8_t modo_manual = 0;
 	uint8_t bomba_manual_on = 0;
  136:	31 2c       	mov	r3, r1
-	estado_riego_t estado = ESTADO_IDLE;
-	uint32_t ultima_lectura = millis();
 	uint32_t inicio_riego = 0;
 	uint32_t fin_enfriamiento = 0;
 
+	// Arranca en automatico (modo_manual = 0) hasta que llegue una
+	// orden del Master que diga lo contrario.
 	uint8_t modo_manual = 0;
  138:	10 e0       	ldi	r17, 0x00	; 0
 	UART_print("Periferico 1 - Riego listo\r\n");
@@ -226,9 +269,9 @@ int main(void)
 	
 	estado_riego_t estado = ESTADO_IDLE;
  148:	00 e0       	ldi	r16, 0x00	; 0
+	// orden del Master que diga lo contrario.
 	uint8_t modo_manual = 0;
 	uint8_t bomba_manual_on = 0;
-
 	while (1)
 	{
 		uint32_t ahora = millis();
@@ -236,6 +279,9 @@ int main(void)
  14e:	6b 01       	movw	r12, r22
  150:	7c 01       	movw	r14, r24
 
+		// Se revisa en cada vuelta del loop (no solo cuando toca leer
+		// el sensor) para que un cambio de modo o una orden manual se
+		// apliquen al toque.
 		if (TWI_slave_hay_comando())
  152:	0e 94 4d 02 	call	0x49a	; 0x49a <TWI_slave_hay_comando>
  156:	88 23       	and	r24, r24
@@ -243,11 +289,13 @@ int main(void)
 		{
 			uint8_t comando = TWI_slave_leer_comando();
  15a:	0e 94 50 02 	call	0x4a0	; 0x4a0 <TWI_slave_leer_comando>
-
 			if (comando == CMD_ACTUADOR_AUTO)
  15e:	82 30       	cpi	r24, 0x02	; 2
  160:	89 f4       	brne	.+34     	; 0x184 <main+0x88>
 			{
+				// Si se venia de manual, se apaga todo y se limpia el
+				// cronometro de riego antes de devolver el control al
+				// sensor, para no arrastrar un estado viejo.
 				if (modo_manual)
  162:	11 23       	and	r17, r17
  164:	59 f1       	breq	.+86     	; 0x1bc <main+0xc0>
@@ -275,7 +323,7 @@ int main(void)
  17a:	1c 82       	std	Y+4, r1	; 0x04
  17c:	1d 82       	std	Y+5, r1	; 0x05
  17e:	1e 82       	std	Y+6, r1	; 0x06
-			{
+				// sensor, para no arrastrar un estado viejo.
 				if (modo_manual)
 				{
 					Relay_off();
@@ -299,7 +347,6 @@ int main(void)
  18c:	09 f0       	breq	.+2      	; 0x190 <main+0x94>
  18e:	90 e0       	ldi	r25, 0x00	; 0
  190:	39 2e       	mov	r3, r25
-
 				if (bomba_manual_on)
  192:	81 30       	cpi	r24, 0x01	; 1
  194:	51 f4       	brne	.+20     	; 0x1aa <main+0xae>
@@ -340,11 +387,11 @@ int main(void)
 			{
 				modo_manual = 1;
  1ba:	11 e0       	ldi	r17, 0x01	; 1
+					LED_off();
 					UART_print("Modo MANUAL - Bomba APAGADA\r\n");
 				}
 			}
 		}
-
 		if ((ahora - ultima_lectura) >= INTERVALO_LECTURA_MS)
  1bc:	d7 01       	movw	r26, r14
  1be:	c6 01       	movw	r24, r12
@@ -385,6 +432,8 @@ int main(void)
  1fe:	91 e0       	ldi	r25, 0x01	; 1
  200:	0e 94 be 02 	call	0x57c	; 0x57c <UART_print>
 
+			// La logica automatica de siempre, pero solo corre si no
+			// estamos en modo manual.
 			if (!modo_manual)
  204:	11 11       	cpse	r17, r1
  206:	1a c0       	rjmp	.+52     	; 0x23c <main+0x140>
@@ -428,10 +477,10 @@ int main(void)
  238:	37 01       	movw	r6, r14
 					estado = ESTADO_REGANDO;
  23a:	01 e0       	ldi	r16, 0x01	; 1
-					UART_print(">> Bomba ENCENDIDA\r\n");
-				}
-			}
 
+			// El paquete que lee el Master: humedad actual, y el estado
+			// real de la bomba (venga de la logica automatica o de la
+			// orden manual, lo que este aplicando en ese momento).
 			uint8_t paquete[2];
 			paquete[0] = (uint8_t)porcentaje;
  23c:	a9 82       	std	Y+1, r10	; 0x01
@@ -450,19 +499,19 @@ int main(void)
  252:	ce 01       	movw	r24, r28
  254:	01 96       	adiw	r24, 0x01	; 1
  256:	0e 94 33 02 	call	0x466	; 0x466 <TWI_slave_set_buffer>
+				}
 			}
 		}
-
 		if ((ahora - ultima_lectura) >= INTERVALO_LECTURA_MS)
 		{
 			ultima_lectura = ahora;
  25a:	46 01       	movw	r8, r12
  25c:	57 01       	movw	r10, r14
+			uint8_t paquete[2];
 			paquete[0] = (uint8_t)porcentaje;
 			paquete[1] = modo_manual ? bomba_manual_on : (estado == ESTADO_REGANDO);
 			TWI_slave_set_buffer(paquete, 2);
 		}
-
 		if (!modo_manual && estado == ESTADO_REGANDO)
  25e:	11 11       	cpse	r17, r1
  260:	74 cf       	rjmp	.-280    	; 0x14a <main+0x4e>
@@ -526,27 +575,52 @@ int main(void)
  2b8:	48 cf       	rjmp	.-368    	; 0x14a <main+0x4e>
 
 000002ba <Relay_init>:
+#include "relay.h"
+
+void Relay_init(void)
+{
+    // Se configura el pin como salida digital.
+    RELAY_DDR |= (1 << RELAY_PIN);
  2ba:	8a b1       	in	r24, 0x0a	; 10
  2bc:	80 62       	ori	r24, 0x20	; 32
  2be:	8a b9       	out	0x0a, r24	; 10
+
+    // Se arranca apagado (bomba detenida) por seguridad.
+    RELAY_PORT &= ~(1 << RELAY_PIN);
  2c0:	8b b1       	in	r24, 0x0b	; 11
  2c2:	8f 7d       	andi	r24, 0xDF	; 223
  2c4:	8b b9       	out	0x0b, r24	; 11
  2c6:	08 95       	ret
 
 000002c8 <Relay_on>:
+}
+
+void Relay_on(void)
+{
+    RELAY_PORT  &= ~ (1 << RELAY_PIN);
  2c8:	8b b1       	in	r24, 0x0b	; 11
  2ca:	8f 7d       	andi	r24, 0xDF	; 223
  2cc:	8b b9       	out	0x0b, r24	; 11
  2ce:	08 95       	ret
 
 000002d0 <Relay_off>:
+}
+
+void Relay_off(void)
+{
+    RELAY_PORT |=(1 << RELAY_PIN);
  2d0:	8b b1       	in	r24, 0x0b	; 11
  2d2:	80 62       	ori	r24, 0x20	; 32
  2d4:	8b b9       	out	0x0b, r24	; 11
  2d6:	08 95       	ret
 
 000002d8 <mapear>:
+#include "adc.h"
+
+// map() y constrain() son funciones propias del "core" de Arduino;
+// en C puro no existen, asi que se reimplementan aqui, igual de simples.
+static int32_t mapear(int32_t x, int32_t in_min, int32_t in_max, int32_t out_min, int32_t out_max)
+{
  2d8:	4f 92       	push	r4
  2da:	5f 92       	push	r5
  2dc:	6f 92       	push	r6
@@ -565,6 +639,7 @@ int main(void)
  2f6:	de b7       	in	r29, 0x3e	; 62
  2f8:	29 01       	movw	r4, r18
  2fa:	3a 01       	movw	r6, r20
+	return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
  2fc:	9b 01       	movw	r18, r22
  2fe:	ac 01       	movw	r20, r24
  300:	24 19       	sub	r18, r4
@@ -595,6 +670,7 @@ int main(void)
  336:	73 1f       	adc	r23, r19
  338:	84 1f       	adc	r24, r20
  33a:	95 1f       	adc	r25, r21
+}
  33c:	df 91       	pop	r29
  33e:	cf 91       	pop	r28
  340:	1f 91       	pop	r17
@@ -612,25 +688,47 @@ int main(void)
  358:	08 95       	ret
 
 0000035a <limitar>:
+
+static int16_t limitar(int16_t x, int16_t minimo, int16_t maximo)
+{
+	if (x < minimo) return minimo;
  35a:	86 17       	cp	r24, r22
  35c:	97 07       	cpc	r25, r23
  35e:	34 f0       	brlt	.+12     	; 0x36c <limitar+0x12>
+	if (x > maximo) return maximo;
  360:	48 17       	cp	r20, r24
  362:	59 07       	cpc	r21, r25
  364:	2c f4       	brge	.+10     	; 0x370 <limitar+0x16>
  366:	84 2f       	mov	r24, r20
  368:	95 2f       	mov	r25, r21
  36a:	08 95       	ret
+	return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+}
+
+static int16_t limitar(int16_t x, int16_t minimo, int16_t maximo)
+{
+	if (x < minimo) return minimo;
  36c:	86 2f       	mov	r24, r22
  36e:	97 2f       	mov	r25, r23
+	if (x > maximo) return maximo;
+	return x;
+}
  370:	08 95       	ret
 
 00000372 <Soil_read_raw>:
+
+uint16_t Soil_read_raw(void)
+{
+	return ADC_read(SOIL_ADC_CHANNEL);
  372:	80 e0       	ldi	r24, 0x00	; 0
  374:	0e 94 5a 00 	call	0xb4	; 0xb4 <ADC_read>
+}
  378:	08 95       	ret
 
 0000037a <Soil_read_percent>:
+
+int16_t Soil_read_percent(void)
+{
  37a:	af 92       	push	r10
  37c:	bf 92       	push	r11
  37e:	cf 92       	push	r12
@@ -639,7 +737,11 @@ int main(void)
  384:	ff 92       	push	r15
  386:	0f 93       	push	r16
  388:	1f 93       	push	r17
+	uint16_t crudo = Soil_read_raw();
  38a:	0e 94 b9 01 	call	0x372	; 0x372 <Soil_read_raw>
+
+	// Mismo mapeo que en ejemplo: VALOR_SECO -> 0%, VALOR_HUMEDO -> 100%.
+	int16_t porcentaje = (int16_t)mapear(crudo, VALOR_SECO, VALOR_HUMEDO, 0, 100);
  38e:	bc 01       	movw	r22, r24
  390:	80 e0       	ldi	r24, 0x00	; 0
  392:	90 e0       	ldi	r25, 0x00	; 0
@@ -668,6 +770,8 @@ int main(void)
  3c2:	0f 90       	pop	r0
  3c4:	dc 01       	movw	r26, r24
  3c6:	cb 01       	movw	r24, r22
+
+	return limitar(porcentaje, 0, 100);
  3c8:	44 e6       	ldi	r20, 0x64	; 100
  3ca:	50 e0       	ldi	r21, 0x00	; 0
  3cc:	60 e0       	ldi	r22, 0x00	; 0
@@ -684,16 +788,29 @@ int main(void)
  3e4:	08 95       	ret
 
 000003e6 <Timer_init>:
+// Igual que en el Master: Timer0 en CTC generando 1 interrupcion cada 1ms.
+static volatile uint32_t ms_counter = 0;
+
+void Timer_init(void)
+{
+	TCCR0A = (1 << WGM01);
  3e6:	82 e0       	ldi	r24, 0x02	; 2
  3e8:	84 bd       	out	0x24, r24	; 36
+	TCCR0B = (1 << CS01) | (1 << CS00); // prescaler 64
  3ea:	93 e0       	ldi	r25, 0x03	; 3
  3ec:	95 bd       	out	0x25, r25	; 37
+	OCR0A = 249;                        // 250 cuentas de 4us = 1ms
  3ee:	99 ef       	ldi	r25, 0xF9	; 249
  3f0:	97 bd       	out	0x27, r25	; 39
+	TIMSK0 = (1 << OCIE0A);
  3f2:	80 93 6e 00 	sts	0x006E, r24	; 0x80006e <__TEXT_REGION_LENGTH__+0x7f806e>
  3f6:	08 95       	ret
 
 000003f8 <__vector_14>:
+}
+
+ISR(TIMER0_COMPA_vect)
+{
  3f8:	1f 92       	push	r1
  3fa:	0f 92       	push	r0
  3fc:	0f b6       	in	r0, 0x3f	; 63
@@ -703,6 +820,7 @@ int main(void)
  404:	9f 93       	push	r25
  406:	af 93       	push	r26
  408:	bf 93       	push	r27
+	ms_counter++;
  40a:	80 91 ae 01 	lds	r24, 0x01AE	; 0x8001ae <__data_end>
  40e:	90 91 af 01 	lds	r25, 0x01AF	; 0x8001af <__data_end+0x1>
  412:	a0 91 b0 01 	lds	r26, 0x01B0	; 0x8001b0 <__data_end+0x2>
@@ -714,6 +832,7 @@ int main(void)
  424:	90 93 af 01 	sts	0x01AF, r25	; 0x8001af <__data_end+0x1>
  428:	a0 93 b0 01 	sts	0x01B0, r26	; 0x8001b0 <__data_end+0x2>
  42c:	b0 93 b1 01 	sts	0x01B1, r27	; 0x8001b1 <__data_end+0x3>
+}
  430:	bf 91       	pop	r27
  432:	af 91       	pop	r26
  434:	9f 91       	pop	r25
@@ -725,12 +844,20 @@ int main(void)
  440:	18 95       	reti
 
 00000442 <millis>:
+
+uint32_t millis(void)
+{
+	uint32_t valor;
+	cli();
  442:	f8 94       	cli
+	valor = ms_counter;
  444:	60 91 ae 01 	lds	r22, 0x01AE	; 0x8001ae <__data_end>
  448:	70 91 af 01 	lds	r23, 0x01AF	; 0x8001af <__data_end+0x1>
  44c:	80 91 b0 01 	lds	r24, 0x01B0	; 0x8001b0 <__data_end+0x2>
  450:	90 91 b1 01 	lds	r25, 0x01B1	; 0x8001b1 <__data_end+0x3>
+	sei();
  454:	78 94       	sei
+	return valor;
  456:	08 95       	ret
 
 00000458 <TWI_slave_init>:
@@ -928,37 +1055,72 @@ ISR(TWI_vect)
  554:	18 95       	reti
 
 00000556 <UART_init>:
+#include "uart.h"
+
+void UART_init(void)
+{
+	uint16_t ubrr = (uint16_t)((F_CPU / (16UL * UART_BAUD)) - 1);
+	UBRR0H = (uint8_t)(ubrr >> 8);
  556:	10 92 c5 00 	sts	0x00C5, r1	; 0x8000c5 <__TEXT_REGION_LENGTH__+0x7f80c5>
+	UBRR0L = (uint8_t)ubrr;
  55a:	87 e6       	ldi	r24, 0x67	; 103
  55c:	80 93 c4 00 	sts	0x00C4, r24	; 0x8000c4 <__TEXT_REGION_LENGTH__+0x7f80c4>
+	UCSR0B = (1 << TXEN0);
  560:	88 e0       	ldi	r24, 0x08	; 8
  562:	80 93 c1 00 	sts	0x00C1, r24	; 0x8000c1 <__TEXT_REGION_LENGTH__+0x7f80c1>
+	UCSR0C = (1 << UCSZ01) | (1 << UCSZ00);
  566:	86 e0       	ldi	r24, 0x06	; 6
  568:	80 93 c2 00 	sts	0x00C2, r24	; 0x8000c2 <__TEXT_REGION_LENGTH__+0x7f80c2>
  56c:	08 95       	ret
 
 0000056e <UART_transmit>:
+}
+
+void UART_transmit(char data)
+{
+	while (!(UCSR0A & (1 << UDRE0)));
  56e:	90 91 c0 00 	lds	r25, 0x00C0	; 0x8000c0 <__TEXT_REGION_LENGTH__+0x7f80c0>
  572:	95 ff       	sbrs	r25, 5
  574:	fc cf       	rjmp	.-8      	; 0x56e <UART_transmit>
+	UDR0 = data;
  576:	80 93 c6 00 	sts	0x00C6, r24	; 0x8000c6 <__TEXT_REGION_LENGTH__+0x7f80c6>
  57a:	08 95       	ret
 
 0000057c <UART_print>:
+}
+
+void UART_print(const char *str)
+{
  57c:	cf 93       	push	r28
  57e:	df 93       	push	r29
  580:	ec 01       	movw	r28, r24
+	while (*str)
  582:	03 c0       	rjmp	.+6      	; 0x58a <UART_print+0xe>
+	{
+		UART_transmit(*str++);
  584:	21 96       	adiw	r28, 0x01	; 1
  586:	0e 94 b7 02 	call	0x56e	; 0x56e <UART_transmit>
+	UDR0 = data;
+}
+
+void UART_print(const char *str)
+{
+	while (*str)
  58a:	88 81       	ld	r24, Y
  58c:	81 11       	cpse	r24, r1
  58e:	fa cf       	rjmp	.-12     	; 0x584 <UART_print+0x8>
+	{
+		UART_transmit(*str++);
+	}
+}
  590:	df 91       	pop	r29
  592:	cf 91       	pop	r28
  594:	08 95       	ret
 
 00000596 <UART_print_int>:
+
+void UART_print_int(int16_t num)
+{
  596:	1f 93       	push	r17
  598:	cf 93       	push	r28
  59a:	df 93       	push	r29
@@ -970,19 +1132,53 @@ ISR(TWI_vect)
  5a6:	de bf       	out	0x3e, r29	; 62
  5a8:	0f be       	out	0x3f, r0	; 63
  5aa:	cd bf       	out	0x3d, r28	; 61
+	char buffer[7];
+	uint8_t i = 0;
+	uint8_t negativo = 0;
+
+	if (num < 0)
  5ac:	99 23       	and	r25, r25
  5ae:	2c f4       	brge	.+10     	; 0x5ba <UART_print_int+0x24>
+	{
+		negativo = 1;
+		num = -num;
  5b0:	91 95       	neg	r25
  5b2:	81 95       	neg	r24
  5b4:	91 09       	sbc	r25, r1
+	uint8_t i = 0;
+	uint8_t negativo = 0;
+
+	if (num < 0)
+	{
+		negativo = 1;
  5b6:	21 e0       	ldi	r18, 0x01	; 1
  5b8:	01 c0       	rjmp	.+2      	; 0x5bc <UART_print_int+0x26>
+
+void UART_print_int(int16_t num)
+{
+	char buffer[7];
+	uint8_t i = 0;
+	uint8_t negativo = 0;
  5ba:	20 e0       	ldi	r18, 0x00	; 0
+	{
+		negativo = 1;
+		num = -num;
+	}
+
+	if (num == 0)
  5bc:	00 97       	sbiw	r24, 0x00	; 0
  5be:	a1 f4       	brne	.+40     	; 0x5e8 <UART_print_int+0x52>
+	{
+		UART_transmit('0');
  5c0:	80 e3       	ldi	r24, 0x30	; 48
  5c2:	0e 94 b7 02 	call	0x56e	; 0x56e <UART_transmit>
  5c6:	26 c0       	rjmp	.+76     	; 0x614 <UART_print_int+0x7e>
+		return;
+	}
+
+	while (num > 0)
+	{
+		buffer[i++] = (num % 10) + '0';
  5c8:	6a e0       	ldi	r22, 0x0A	; 10
  5ca:	70 e0       	ldi	r23, 0x00	; 0
  5cc:	0e 94 24 03 	call	0x648	; 0x648 <__divmodhi4>
@@ -994,19 +1190,45 @@ ISR(TWI_vect)
  5da:	f1 1d       	adc	r31, r1
  5dc:	80 5d       	subi	r24, 0xD0	; 208
  5de:	80 83       	st	Z, r24
+		num /= 10;
  5e0:	86 2f       	mov	r24, r22
  5e2:	97 2f       	mov	r25, r23
+		return;
+	}
+
+	while (num > 0)
+	{
+		buffer[i++] = (num % 10) + '0';
  5e4:	1f 5f       	subi	r17, 0xFF	; 255
  5e6:	01 c0       	rjmp	.+2      	; 0x5ea <UART_print_int+0x54>
  5e8:	10 e0       	ldi	r17, 0x00	; 0
+	{
+		UART_transmit('0');
+		return;
+	}
+
+	while (num > 0)
  5ea:	18 16       	cp	r1, r24
  5ec:	19 06       	cpc	r1, r25
  5ee:	64 f3       	brlt	.-40     	; 0x5c8 <UART_print_int+0x32>
+	{
+		buffer[i++] = (num % 10) + '0';
+		num /= 10;
+	}
+
+	if (negativo)
  5f0:	22 23       	and	r18, r18
  5f2:	71 f0       	breq	.+28     	; 0x610 <UART_print_int+0x7a>
+	{
+		UART_transmit('-');
  5f4:	8d e2       	ldi	r24, 0x2D	; 45
  5f6:	0e 94 b7 02 	call	0x56e	; 0x56e <UART_transmit>
  5fa:	0a c0       	rjmp	.+20     	; 0x610 <UART_print_int+0x7a>
+	}
+
+	while (i > 0)
+	{
+		UART_transmit(buffer[--i]);
  5fc:	11 50       	subi	r17, 0x01	; 1
  5fe:	e1 e0       	ldi	r30, 0x01	; 1
  600:	f0 e0       	ldi	r31, 0x00	; 0
@@ -1016,8 +1238,17 @@ ISR(TWI_vect)
  608:	f1 1d       	adc	r31, r1
  60a:	80 81       	ld	r24, Z
  60c:	0e 94 b7 02 	call	0x56e	; 0x56e <UART_transmit>
+	if (negativo)
+	{
+		UART_transmit('-');
+	}
+
+	while (i > 0)
  610:	11 11       	cpse	r17, r1
  612:	f4 cf       	rjmp	.-24     	; 0x5fc <UART_print_int+0x66>
+	{
+		UART_transmit(buffer[--i]);
+	}
  614:	27 96       	adiw	r28, 0x07	; 7
  616:	0f b6       	in	r0, 0x3f	; 63
  618:	f8 94       	cli
