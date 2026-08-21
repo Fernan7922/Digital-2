@@ -278,16 +278,29 @@ void Set_P2_LEDs_All_OFF(void) {
 }
 
 // Control del Display de 7 Segmentos (Cátodo Común)
+// Control del Display de 7 Segmentos (Cátodo Común)
 void Display_WriteDigit(char digit) {
-    // Apaga todos los segmentos
+    // Apaga todos los segmentos (Pone los pines a 0V)
     HAL_GPIO_WritePin(GPIOA, SEG_A_Pin|SEG_B_Pin|SEG_C_Pin|SEG_D_Pin|SEG_E_Pin|SEG_F_Pin|SEG_G_Pin, GPIO_PIN_RESET);
 
     switch(digit) {
+        case '0':
+            HAL_GPIO_WritePin(GPIOA, SEG_A_Pin|SEG_B_Pin|SEG_C_Pin|SEG_D_Pin|SEG_E_Pin|SEG_F_Pin, GPIO_PIN_SET);
+            break;
         case '1':
             HAL_GPIO_WritePin(GPIOA, SEG_B_Pin|SEG_C_Pin, GPIO_PIN_SET);
             break;
         case '2':
             HAL_GPIO_WritePin(GPIOA, SEG_A_Pin|SEG_B_Pin|SEG_G_Pin|SEG_E_Pin|SEG_D_Pin, GPIO_PIN_SET);
+            break;
+        case '3':
+            HAL_GPIO_WritePin(GPIOA, SEG_A_Pin|SEG_B_Pin|SEG_C_Pin|SEG_D_Pin|SEG_G_Pin, GPIO_PIN_SET);
+            break;
+        case '4':
+            HAL_GPIO_WritePin(GPIOA, SEG_B_Pin|SEG_C_Pin|SEG_F_Pin|SEG_G_Pin, GPIO_PIN_SET);
+            break;
+        case '5':
+            HAL_GPIO_WritePin(GPIOA, SEG_A_Pin|SEG_C_Pin|SEG_D_Pin|SEG_F_Pin|SEG_G_Pin, GPIO_PIN_SET);
             break;
         default:
             break;
