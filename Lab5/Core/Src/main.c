@@ -128,40 +128,91 @@ int main(void)
   /* USER CODE END 2 */
 
   /* Infinite loop */
-  /* USER CODE BEGIN WHILE */
-  while (1)
-  {
-      // Mientras no haya un ganador, actualizamos los LEDs de forma secuencial (uno a la vez)
-      if (winner == 0) {
-          Update_P1_LEDs_Sequential(p1_counter);
-          Update_P2_LEDs_Sequential(p2_counter);
+    /* USER CODE BEGIN WHILE */
+    while (1)
+    {
+        switch(game_state) {
+            case STATE_IDLE:
+                // Limpieza y preparación inicial del hardware
+                p1_counter = 0;
+                p2_counter = 0;
+                winner = 0;
+                Set_P1_LEDs_All_OFF();
+                Set_P2_LEDs_All_OFF();
+                Display_WriteDigit(' '); // Display apagado
 
-          // Rutina para verificar si algún jugador llegó a la meta (LED 4 encendido)
-          if (p1_counter >= WINNING_SCORE) {
-              winner = 1;
-          } else if (p2_counter >= WINNING_SCORE) {
-              winner = 2;
-          }
-      }
-      else {
-          // Rutina para mostrar resultados al haber un ganador
-          if (winner == 1) {
-              Set_P1_LEDs_All_ON();    // Todos los LEDs del ganador encendidos
-              Set_P2_LEDs_All_OFF();   // Todos los LEDs del perdedor apagados
-              Display_WriteDigit('1'); // Muestra '1' en el display
-          }
-          else if (winner == 2) {
-              Set_P1_LEDs_All_OFF();   // Todos los LEDs del perdedor apagados
-              Set_P2_LEDs_All_ON();    // Todos los LEDs del ganador encendidos
-              Display_WriteDigit('2'); // Muestra '2' en el display
-          }
-      }
-      HAL_Delay(10); // Retardo de estabilidad
-    /* USER CODE END WHILE */
+                if (start_pressed) {
+                    start_pressed = 0;
+                    game_state = STATE_COUNTDOWN; // Transición a la cuenta regresiva
+                }
+                break;
 
-    /* USER CODE BEGIN 3 */
-  }
-  /* USER CODE END 3 */
+            case STATE_COUNTDOWN:
+                // Muestra la cuenta regresiva de 5 a 0 (1 segundo por paso)
+                Display_WriteDigit('5');
+                HAL_Delay(1000);
+                Display_WriteDigit('4');
+                HAL_Delay(1000);
+                Display_WriteDigit('3');
+                HAL_Delay(1000);
+                Display_WriteDigit('2');
+                HAL_Delay(1000);
+                Display_WriteDigit('1');
+                HAL_Delay(1000);
+                Display_WriteDigit('0');
+                HAL_Delay(1000);
+                Display_WriteDigit(' '); // Apagar display al dar la salida
+
+                // Aseguramos limpiar contadores de los jugadores tras la espera
+                p1_counter = 0;
+                p2_counter = 0;
+
+                game_state = STATE_PLAYING; // Iniciar la carrera (desbloquea botones)
+                break;
+
+            case STATE_PLAYING:
+                // Carrera en curso: Actualiza los LEDs secuenciales de cada jugador
+                Update_P1_LEDs_Sequential(p1_counter);
+                Update_P2_LEDs_Sequential(p2_counter);
+
+                // Evalúa si algún jugador llegó al LED 4 (Meta)
+                if (p1_counter >= WINNING_SCORE) {
+                    winner = 1;
+                    game_state = STATE_FINISHED;
+                } else if (p2_counter >= WINNING_SCORE) {
+                    winner = 2;
+                    game_state = STATE_FINISHED;
+                }
+                break;
+
+            case STATE_FINISHED:
+                // Muestra de forma fija al ganador en LEDs y en el display de 7 segmentos
+                if (winner == 1) {
+                    Set_P1_LEDs_All_ON();    // Enciende la fila del ganador
+                    Set_P2_LEDs_All_OFF();   // Apaga la fila del oponente
+                    Display_WriteDigit('1');
+                }
+                else if (winner == 2) {
+                    Set_P1_LEDs_All_OFF();   // Apaga la fila del oponente
+                    Set_P2_LEDs_All_ON();    // Enciende la fila del ganador
+                    Display_WriteDigit('2');
+                }
+
+                // Si se presiona el botón START de nuevo, se reinicia el flujo del juego
+                if (start_pressed) {
+                    start_pressed = 0;
+                    game_state = STATE_IDLE;
+                }
+                break;
+        }
+        HAL_Delay(10); // Estabilización del reloj principal
+      /* USER CODE END WHILE */
+
+      /* USER CODE BEGIN 3 */
+    }
+    /* USER CODE END 3 */
+
+
 }
 
 /**
