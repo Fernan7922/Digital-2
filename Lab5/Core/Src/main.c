@@ -212,33 +212,39 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
-//Prueba de Cambios desde Cube ide 2
 // Callback para procesar las interrupciones físicas de los botones
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
     uint32_t current_time = HAL_GetTick();
 
-    // Si ya existe un ganador, ignoramos pulsaciones adicionales
-    if (winner != 0) {
-        return;
-    }
-
-    // Interrupción del botón de Jugador 1
-    if (GPIO_Pin == BTN_P1_Pin) {
-        // Anti-rebote por software: descarta señales en un rango de 150ms
-        if (current_time - last_btn_p1_time > 150) {
-            last_btn_p1_time = current_time;
-            if (p1_counter < WINNING_SCORE) {
-                p1_counter++;
+    // 1. Interrupción del Botón de Inicio / Start (PB0)
+    if (GPIO_Pin == BTN_START_Pin) {
+        if (current_time - last_btn_start_time > 250) { // Anti-rebote de 250ms
+            last_btn_start_time = current_time;
+            // Solo permitimos activar el inicio en espera (IDLE) o al finalizar una partida
+            if (game_state == STATE_IDLE || game_state == STATE_FINISHED) {
+                start_pressed = 1;
             }
         }
     }
-    // Interrupción del botón de Jugador 2
+    // 2. Botón del Jugador 1 - Solo incrementa si la carrera está activa (STATE_PLAYING)
+    else if (GPIO_Pin == BTN_P1_Pin) {
+        if (game_state == STATE_PLAYING) {
+            if (current_time - last_btn_p1_time > 150) { // Anti-rebote de 150ms
+                last_btn_p1_time = current_time;
+                if (p1_counter < WINNING_SCORE) {
+                    p1_counter++;
+                }
+            }
+        }
+    }
+    // 3. Botón del Jugador 2 - Solo incrementa si la carrera está activa (STATE_PLAYING)
     else if (GPIO_Pin == BTN_P2_Pin) {
-        // Anti-rebote por software: descarta señales en un rango de 150ms
-        if (current_time - last_btn_p2_time > 150) {
-            last_btn_p2_time = current_time;
-            if (p2_counter < WINNING_SCORE) {
-                p2_counter++;
+        if (game_state == STATE_PLAYING) {
+            if (current_time - last_btn_p2_time > 150) { // Anti-rebote de 150ms
+                last_btn_p2_time = current_time;
+                if (p2_counter < WINNING_SCORE) {
+                    p2_counter++;
+                }
             }
         }
     }
