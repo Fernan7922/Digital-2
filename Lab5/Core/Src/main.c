@@ -46,6 +46,16 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
+// Definición de los estados del juego
+typedef enum {
+    STATE_IDLE,
+    STATE_COUNTDOWN,
+    STATE_PLAYING,
+    STATE_FINISHED
+} GameState;
+
+volatile GameState game_state = STATE_IDLE; // Estado inicial del juego
+
 // Contadores de posición secuencial (0 a 4) para cada jugador
 volatile uint8_t p1_counter = 0;
 volatile uint8_t p2_counter = 0;
@@ -53,9 +63,13 @@ volatile uint8_t p2_counter = 0;
 // Variable de control del ganador (0: sin ganador, 1: Jugador 1, 2: Jugador 2)
 volatile uint8_t winner = 0;
 
-// Tiempos para el anti-rebote (Debounce) por software
+// Banderas de control para saber si se presionó el botón Start
+volatile uint8_t start_pressed = 0;
+
+// Tiempos para el anti-rebote (Debounce) por software de cada botón
 volatile uint32_t last_btn_p1_time = 0;
 volatile uint32_t last_btn_p2_time = 0;
+volatile uint32_t last_btn_start_time = 0; // Guarda el tiempo del botón Start
 
 const uint8_t WINNING_SCORE = 4; // Meta: completar las 4 posiciones secuenciales
 /* USER CODE END PV */
