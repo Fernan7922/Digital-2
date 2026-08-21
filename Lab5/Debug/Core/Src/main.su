@@ -1,0 +1,11 @@
+../Core/Src/main.c:81:5:main	8	static
+../Core/Src/main.c:154:6:SystemClock_Config	88	static
+../Core/Src/main.c:199:6:HAL_GPIO_EXTI_Callback	24	static
+../Core/Src/main.c:230:6:Update_P1_LEDs_Sequential	16	static
+../Core/Src/main.c:238:6:Update_P2_LEDs_Sequential	16	static
+../Core/Src/main.c:246:6:Set_P1_LEDs_All_ON	8	static
+../Core/Src/main.c:250:6:Set_P1_LEDs_All_OFF	8	static
+../Core/Src/main.c:254:6:Set_P2_LEDs_All_ON	8	static
+../Core/Src/main.c:258:6:Set_P2_LEDs_All_OFF	8	static
+../Core/Src/main.c:263:6:Display_WriteDigit	16	static
+../Core/Src/main.c:284:6:Error_Handler	4	static,ignoring_inline_asm
