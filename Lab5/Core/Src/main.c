@@ -334,7 +334,7 @@ void Set_P2_LEDs_All_OFF(void) {
     HAL_GPIO_WritePin(GPIOB, LED_P2_0_Pin|LED_P2_1_Pin|LED_P2_2_Pin|LED_P2_3_Pin, GPIO_PIN_RESET);
 }
 
-// Control del Display de 7 Segmentos (Cátodo Común)
+
 // Control del Display de 7 Segmentos (Cátodo Común)
 void Display_WriteDigit(char digit) {
     // Apaga todos los segmentos (Pone los pines a 0V)
