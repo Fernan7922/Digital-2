@@ -71,7 +71,7 @@ volatile uint32_t last_btn_p1_time = 0;
 volatile uint32_t last_btn_p2_time = 0;
 volatile uint32_t last_btn_start_time = 0; // Guarda el tiempo del botón Start
 
-const uint8_t WINNING_SCORE = 4; // Meta: completar las 4 posiciones secuenciales
+const uint8_t WINNING_SCORE = 4; // Meta con esto se puede: completar las 4 posiciones secuenciales
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
