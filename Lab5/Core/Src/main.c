@@ -1,5 +1,7 @@
 /* USER CODE BEGIN Header */
-//Prueba de primer Envío  a Github
+//Fernando JOsé Guzman González
+//24734
+//Lab_Juego de Carreras 2.0
 /**
   ******************************************************************************
   * @file           : main.c
