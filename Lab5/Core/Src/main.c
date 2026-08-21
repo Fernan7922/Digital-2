@@ -1,7 +1,7 @@
 /* USER CODE BEGIN Header */
 //Fernando JOsé Guzman González
 //24734
-//Lab_Juego de Carreras 2.0
+//Lab_Juego de Carreras 2.0 LEDS_DISPLAY_BOTON
 /**
   ******************************************************************************
   * @file           : main.c
