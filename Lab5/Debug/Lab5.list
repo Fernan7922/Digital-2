@@ -27,9 +27,9 @@ Idx Name          Size      VMA       LMA       File off  Algn
                   ALLOC
  11 .ARM.attributes 00000030  00000000  00000000  0000300c  2**0
                   CONTENTS, READONLY
- 12 .debug_info   00004858  00000000  00000000  0000303c  2**0
+ 12 .debug_info   00004857  00000000  00000000  0000303c  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
- 13 .debug_abbrev 00001293  00000000  00000000  00007894  2**0
+ 13 .debug_abbrev 00001295  00000000  00000000  00007893  2**0
                   CONTENTS, READONLY, DEBUGGING, OCTETS
  14 .debug_aranges 000004f0  00000000  00000000  00008b28  2**3
                   CONTENTS, READONLY, DEBUGGING, OCTETS
@@ -892,6 +892,7 @@ void SystemClock_Config(void)
 0800085c <HAL_GPIO_EXTI_Callback>:
 
 /* USER CODE BEGIN 4 */
+//Prueba de Cambios desde Cube ide
 // Callback para procesar las interrupciones físicas de los botones
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
  800085c:	b580      	push	{r7, lr}
