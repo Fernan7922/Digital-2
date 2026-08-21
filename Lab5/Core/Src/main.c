@@ -198,7 +198,7 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
-//Prueba de Cambios desde Cube ide
+//Prueba de Cambios desde Cube ide 2
 // Callback para procesar las interrupciones físicas de los botones
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
     uint32_t current_time = HAL_GetTick();
