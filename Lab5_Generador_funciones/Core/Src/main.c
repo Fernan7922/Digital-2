@@ -105,6 +105,12 @@ int main(void)
   /* USER CODE BEGIN 2 */
   // Se inicializa el temporizador TIM2 en modo de captura de entrada usando interrupciones
   HAL_TIM_IC_Start_IT(&htim2, TIM_CHANNEL_1);
+
+  // Arrancamos el TIM3 en modo interrupción básica (generará interrupciones cada 250 ms)
+  HAL_TIM_Base_Start_IT(&htim3);
+
+  // Arrancamos el TIM4 en modo interrupción básica (generará interrupciones cada 1000 ms)
+  HAL_TIM_Base_Start_IT(&htim4);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -209,9 +215,27 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
                 frecuencia_final = 1000000 / ticks_diferencia;
             }
 
-            // Restablecimiento de la bandera para iniciar la lectura del siguiente ciclo de onda
+            // Se hace Restablecimiento de la bandera para iniciar la lectura del siguiente ciclo de onda
             primer_flanco_leido = 0;
         }
+    }
+} // AQUÍ SE CIERRA CORRECTAMENTE LA FUNCIÓN DE CAPTURA
+
+// Esta función se ejecuta automáticamente cuando TIM3 o TIM4 completan su conteo de tiempo (desbordamiento)
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+    // Si la interrupción proviene de TIM3 (cada 250 ms)
+    if (htim->Instance == TIM3)
+    {
+        // Cambia el estado del pin PB3 (de encendido a apagado, o viceversa)
+        HAL_GPIO_TogglePin(LED_500ms_GPIO_Port, LED_500ms_Pin);
+    }
+
+    // Si la interrupción proviene de TIM4 (cada 1000 ms o 1 segundo)
+    if (htim->Instance == TIM4)
+    {
+        // Cambia el estado del pin PB4 (de encendido a apagado, o viceversa)
+        HAL_GPIO_TogglePin(LED_2s_GPIO_Port, LED_2s_Pin);
     }
 }
 /* USER CODE END 4 */
