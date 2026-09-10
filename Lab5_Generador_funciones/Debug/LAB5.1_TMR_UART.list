@@ -856,7 +856,7 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
             primer_flanco_leido = 0;
         }
     }
-} // <--- AQUÍ SE CIERRA CORRECTAMENTE LA FUNCIÓN DE CAPTURA
+} // AQUÍ SE CIERRA CORRECTAMENTE LA FUNCIÓN DE CAPTURA
  800086e:	e029      	b.n	80008c4 <HAL_TIM_IC_CaptureCallback+0x84>
             subida_actual = HAL_TIM_ReadCapturedValue(htim, TIM_CHANNEL_1);
  8000870:	2100      	movs	r1, #0
@@ -905,7 +905,7 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
  80008be:	4b03      	ldr	r3, [pc, #12]	@ (80008cc <HAL_TIM_IC_CaptureCallback+0x8c>)
  80008c0:	2200      	movs	r2, #0
  80008c2:	701a      	strb	r2, [r3, #0]
-} // <--- AQUÍ SE CIERRA CORRECTAMENTE LA FUNCIÓN DE CAPTURA
+} // AQUÍ SE CIERRA CORRECTAMENTE LA FUNCIÓN DE CAPTURA
  80008c4:	bf00      	nop
  80008c6:	3708      	adds	r7, #8
  80008c8:	46bd      	mov	sp, r7
