@@ -1,0 +1,13 @@
+../Core/Src/main.c:121:5:__io_putchar	1
+../Core/Src/main.c:127:6:Tocar_Tono	2
+../Core/Src/main.c:139:6:Reproducir_Tema1_Mario	2
+../Core/Src/main.c:156:6:Reproducir_Tema2_StarWars	2
+../Core/Src/main.c:173:6:Mostrar_Menu	1
+../Core/Src/main.c:192:5:main	4
+../Core/Src/main.c:262:6:SystemClock_Config	3
+../Core/Src/main.c:310:13:MX_DAC_Init	3
+../Core/Src/main.c:350:13:MX_TIM3_Init	6
+../Core/Src/main.c:409:13:MX_TIM6_Init	3
+../Core/Src/main.c:447:13:MX_USART2_UART_Init	2
+../Core/Src/main.c:480:13:MX_GPIO_Init	1
+../Core/Src/main.c:522:6:Error_Handler	1
