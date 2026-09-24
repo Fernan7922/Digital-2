@@ -99,6 +99,21 @@ const uint16_t starwars_durations[] = {
     500, 250, 250, 400, 300, 300
 };
 const uint16_t STARWARS_LEN = sizeof(starwars_notes) / sizeof(starwars_notes[0]);
+
+/* Tabla senoidal precalculada de 64 muestras (12 bits) para el DAC */
+const uint16_t sine_lut[64] = {
+    2048, 2248, 2447, 2642, 2831, 3013, 3185, 3346,
+    3495, 3630, 3750, 3853, 3939, 4007, 4056, 4085,
+    4095, 4085, 4056, 4007, 3939, 3853, 3750, 3630,
+    3495, 3346, 3185, 3013, 2831, 2642, 2447, 2248,
+    2048, 1847, 1648, 1453, 1264, 1082,  910,  749,
+     600,  465,  345,  242,  156,   88,   39,   10,
+       0,   10,   39,   88,  156,  242,  345,  465,
+     600,  749,  910, 1082, 1264, 1453, 1648, 1847
+};
+
+volatile uint32_t dac_phase_acc = 0;
+volatile uint32_t dac_phase_step = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -110,6 +125,7 @@ static void MX_DAC_Init(void);
 static void MX_TIM6_Init(void);
 /* USER CODE BEGIN PFP */
 void Tocar_Tono(uint32_t freq);
+void DAC_PlayTone(uint32_t freq);
 void Reproducir_Tema1_Mario(void);
 void Reproducir_Tema2_StarWars(void);
 void Mostrar_Menu(void);
@@ -135,8 +151,24 @@ void Tocar_Tono(uint32_t freq) {
     }
 }
 
+// Configura el tono analógico para el DAC (Pin PA4)
+void DAC_PlayTone(uint32_t freq) {
+    if (freq == 0) {
+        dac_phase_step = 0;
+        HAL_DAC_SetValue(&hdac, DAC_CHANNEL_1, DAC_ALIGN_12B_R, 0);
+    } else {
+        // Incremento de fase para TIM6 a 20 kHz
+        dac_phase_step = (uint32_t)(((uint64_t)freq * 64 * 65536) / 20000);
+    }
+}
+
 // Reproduce Tema 1 por PWM
 void Reproducir_Tema1_Mario(void) {
+    // Apagar DAC para la Forma B
+    HAL_TIM_Base_Stop_IT(&htim6);
+    HAL_DAC_Stop(&hdac, DAC_CHANNEL_1);
+    HAL_DAC_SetValue(&hdac, DAC_CHANNEL_1, DAC_ALIGN_12B_R, 0);
+
     printf("\r\n Reproduce 1: Super Mario Bros (10s\r\n");
     HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
 
@@ -148,40 +180,42 @@ void Reproducir_Tema1_Mario(void) {
         HAL_Delay(mario_durations[i] * 0.15); // 15% pausa entre notas
     }
 
+    Tocar_Tono(REST);
     HAL_TIM_PWM_Stop(&htim3, TIM_CHANNEL_1);
     printf(" Fin de reproduccion Audio 1.\r\n");
 }
 
-// Reproduce Tema 2 por PWM
+// Reproduce Tema 2 por DAC
 void Reproducir_Tema2_StarWars(void) {
-    printf("\r\n Reproduce 2: Star Wars Marcha Imperial \r\n");
-    HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
+    // Apagar PWM para la Forma B
+    Tocar_Tono(REST);
+    HAL_TIM_PWM_Stop(&htim3, TIM_CHANNEL_1);
+
+    printf("\r\n Reproduce 2: Star Wars Marcha Imperial (DAC)\r\n");
+    HAL_DAC_Start(&hdac, DAC_CHANNEL_1);
+    HAL_TIM_Base_Start_IT(&htim6); // Inicia interrupción del DAC a 20 kHz
 
     for (int i = 0; i < STARWARS_LEN; i++) {
-        Tocar_Tono(starwars_notes[i]);
+        DAC_PlayTone(starwars_notes[i]);
         HAL_Delay(starwars_durations[i] * 0.85);
 
-        Tocar_Tono(REST);
+        DAC_PlayTone(REST);
         HAL_Delay(starwars_durations[i] * 0.15);
     }
 
-    HAL_TIM_PWM_Stop(&htim3, TIM_CHANNEL_1);
+    HAL_TIM_Base_Stop_IT(&htim6);
+    DAC_PlayTone(REST);
+    HAL_DAC_SetValue(&hdac, DAC_CHANNEL_1, DAC_ALIGN_12B_R, 0);
+    HAL_DAC_Stop(&hdac, DAC_CHANNEL_1);
     printf("Fin de reproduccion Audio 2.\r\n");
 }
 
 // Despliega el menú serial requerido en la Parte 1
 void Mostrar_Menu(void) {
-
     printf("       LABORATORIO 7 - REPRODUCTOR DE AUDIO       \r\n");
-
     printf(" Audios disponibles para reproducir:\r\n");
     printf("  Audio 1: Pone Super Mario Bros (PWM - 10 seg)\r\n");
-    printf("   Audio 2: Pone Wars Imperial (PWM - 10 seg)\r\n");
-
-
-
-
-
+    printf("   Audio 2: Pone Wars Imperial (DAC - 10 seg)\r\n");
 }
 /* USER CODE END 0 */
 
@@ -219,6 +253,10 @@ int main(void)
   MX_DAC_Init();
   MX_TIM6_Init();
   /* USER CODE BEGIN 2 */
+  // Asegurar interrupción activa para TIM6/DAC
+  HAL_NVIC_SetPriority(TIM6_DAC_IRQn, 1, 0);
+  HAL_NVIC_EnableIRQ(TIM6_DAC_IRQn);
+
   // Mostrar el menú en la terminal al iniciar
   Mostrar_Menu();
   /* USER CODE END 2 */
@@ -512,7 +550,16 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-
+// Callback de TIM6 a 20 kHz que actualiza el valor analógico del DAC en PA4
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
+    if (htim->Instance == TIM6) {
+        if (dac_phase_step > 0) {
+            dac_phase_acc += dac_phase_step;
+            uint8_t index = (dac_phase_acc >> 16) & 0x3F; // Máscara de 64 muestras
+            HAL_DAC_SetValue(&hdac, DAC_CHANNEL_1, DAC_ALIGN_12B_R, sine_lut[index]);
+        }
+    }
+}
 /* USER CODE END 4 */
 
 /**
