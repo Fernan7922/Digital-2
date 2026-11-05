@@ -1,5 +1,5 @@
 /* USER CODE BEGIN Header */
-/** Fernando Guzman
+/**
   ******************************************************************************
   * @file           : main.c
   * @brief          : Main program body
@@ -17,122 +17,157 @@
   */
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
+/* Reemplazo completo de Core/Src/main.c para el proyecto CubeMX existente.
+ * Requiere main.h, stm32f4xx_hal_msp.c y stm32f4xx_it.c generados.
+ * En MSP: PA0/PA1/PA4/PB0 analogicos, USART2 PA2/PA3 AF7;
+ * ADC1 DMA2_Stream0 Channel0, circular, Half Word, MemoryInc habilitado;
+ * __HAL_LINKDMA(hadc, DMA_Handle, hdma_adc1).
+ * En IRQ: DMA2_Stream0_IRQHandler llama HAL_DMA_IRQHandler(&hdma_adc1).
+ * Divisor: 3V3 -> LDR -> ADC -> resistencia 10k -> GND.
+ * Menos luz debe reducir la lectura. Los umbrales NO estan calibrados.
+ * Esta prueba usa un umbral unico y no aplica histeresis ni antirrebote.
+ */
 #include "main.h"
-#include "tim.h"
-#include "usart.h"
-#include "gpio.h"
-
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include <stdio.h> // Se agrega esta librería para poder utilizar "sprintf" y dar formato de texto a los datos.
+#include <stdio.h>
+#include <string.h>
 /* USER CODE END Includes */
-
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-
 /* USER CODE END PTD */
-
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
+#define LDR_COUNT 4U
+#define DMA_SAMPLES 128U
+#define SAMPLES_PER_HALF 16U
+/* PROVISIONAL: ajustar al observar lecturas libres y cubiertas. */
+#define UMBRAL_OCUPADO 1800U
 /* USER CODE END PD */
-
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
-
 /* USER CODE END PM */
-
 /* Private variables ---------------------------------------------------------*/
-
+ADC_HandleTypeDef hadc1;
+DMA_HandleTypeDef hdma_adc1;
+UART_HandleTypeDef huart2;
 /* USER CODE BEGIN PV */
-// Variables para medir el tiempo transcurrido entre flancos de subida de la señal en TIM2
-uint32_t subida_anterior = 0;          // Almacena el valor del contador en el primer flanco detectado
-uint32_t subida_actual = 0;            // Almacena el valor del contador en el segundo flanco detectado
-uint32_t ticks_diferencia = 0;         // Guarda el periodo medido expresado en ticks de reloj
-uint8_t primer_flanco_leido = 0;       // Bandera de control para diferenciar la primera lectura de la segunda
-
-// Variable donde guardaremos el cálculo final de la frecuencia en Hertz
-volatile uint32_t frecuencia_final = 0;
-
-// Buffer temporal donde se escribe el texto que se enviará por el puerto serie
-char bufer_texto[100];
+static volatile uint16_t adc_dma[DMA_SAMPLES] __attribute__((aligned(4)));
+static volatile uint16_t adc_promedio[LDR_COUNT];
+static volatile uint32_t adc_bloques = 0;
+static volatile uint32_t adc_error = 0;
+static uint32_t bloques_anteriores = 0;
+static uint8_t adc_iniciado = 0;
 /* USER CODE END PV */
-
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
+static void MX_GPIO_Init(void);
+static void MX_DMA_Init(void);
+static void MX_ADC1_Init(void);
+static void MX_USART2_UART_Init(void);
 /* USER CODE BEGIN PFP */
-
+static void Serial_Texto(const char *texto);
+static void Promediar_Mitad(uint32_t inicio);
 /* USER CODE END PFP */
-
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
 /* USER CODE END 0 */
-
 /**
   * @brief  The application entry point.
   * @retval int
   */
 int main(void)
 {
-
   /* USER CODE BEGIN 1 */
-
   /* USER CODE END 1 */
-
   /* MCU Configuration--------------------------------------------------------*/
-
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
-
   /* USER CODE BEGIN Init */
-
   /* USER CODE END Init */
-
   /* Configure the system clock */
   SystemClock_Config();
-
   /* USER CODE BEGIN SysInit */
-
   /* USER CODE END SysInit */
-
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  MX_TIM2_Init();
+  MX_DMA_Init();
+  MX_ADC1_Init();
   MX_USART2_UART_Init();
-  MX_TIM3_Init();
-  MX_TIM4_Init();
   /* USER CODE BEGIN 2 */
-  // Se inicializa el temporizador TIM2 en modo de captura de entrada usando interrupciones
-  HAL_TIM_IC_Start_IT(&htim2, TIM_CHANNEL_1);
-
-  // Arrancamos el TIM3 en modo interrupción básica (generará interrupciones cada 250 ms)
-  HAL_TIM_Base_Start_IT(&htim3);
-
-  // Arrancamos el TIM4 en modo interrupción básica (generará interrupciones cada 1000 ms)
-  HAL_TIM_Base_Start_IT(&htim4);
-  /* USER CODE END 2 */
-
+HAL_Delay(1000);
+  Serial_Texto("\r\nSTM1 INICIADA - SERIAL FUNCIONANDO\r\n"
+               "USART2: 115200 8N1. P5=PA0 P6=PA1 P7=PA4 P8=PB0\r\n"
+               "Umbral provisional: ADC < 1800 = OCUPADO.\r\n");
+  /* El proyecto CubeMX debe enlazar ADC1 con DMA2 Stream0/Channel0,
+     circular, incremento de memoria y tamanos Half Word. */
+  if (HAL_ADC_Start_DMA(&hadc1, (uint32_t *)adc_dma, DMA_SAMPLES) == HAL_OK)
+  {
+    adc_iniciado = 1U;
+    Serial_Texto("ADC/DMA iniciado. Esperando muestras...\r\n");
+  }
+  else
+  {
+    /* Mantener vivo el serial para diagnosticar, sin fingir lecturas. */
+    Serial_Texto("ERROR: no se pudo iniciar ADC/DMA.\r\n");
+  }
+/* USER CODE END 2 */
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-    // Se genera la cadena de texto con la última lectura de frecuencia registrada
-    int longitud_mensaje = sprintf(bufer_texto, "Frecuencia en pin PA0: %lu Hz\r\n", frecuencia_final);
-
-    // Transmisión del mensaje a través de USART2 (directo a la terminal serie en la PC)
-    HAL_UART_Transmit(&huart2, (uint8_t*)bufer_texto, longitud_mensaje, HAL_MAX_DELAY);
-
-    // Pausa de 500 ms para evitar la sobrecarga de datos en la pantalla de Termite
-    HAL_Delay(500);
-
     /* USER CODE END WHILE */
-
     /* USER CODE BEGIN 3 */
-  }
-  /* USER CODE END 3 */
-}
+char mensaje[160];
+    uint16_t valores[LDR_COUNT];
+    uint32_t primask = __get_PRIMASK();
+    __disable_irq();
+    uint32_t bloques = adc_bloques;
+    for (uint32_t i = 0; i < LDR_COUNT; i++) valores[i] = adc_promedio[i];
+    __set_PRIMASK(primask);
 
+    HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
+
+    if (!adc_iniciado)
+    {
+      Serial_Texto("STM1 ACTIVA - ERROR AL INICIAR ADC/DMA\r\n");
+    }
+    else if (adc_error != 0U)
+    {
+      Serial_Texto("STM1 ACTIVA - ERROR ADC/DMA. Revisar configuracion.\r\n");
+    }
+    else if (bloques == 0U)
+    {
+      Serial_Texto("STM1 ACTIVA - ESPERANDO LECTURAS ADC. Revisar MSP/IRQ DMA.\r\n");
+    }
+    else if (bloques == bloques_anteriores)
+    {
+      Serial_Texto("STM1 ACTIVA - ADC SIN DATOS NUEVOS. Revisar DMA circular.\r\n");
+    }
+    else
+    {
+      uint32_t ocupados = 0U;
+      for (uint32_t i = 0; i < LDR_COUNT; i++)
+      {
+        uint8_t ocupado = (valores[i] < UMBRAL_OCUPADO);
+        ocupados += ocupado;
+        (void)snprintf(mensaje, sizeof(mensaje),
+                       "P%u: ADC=%u - %s\r\n",
+                       (unsigned int)(i + 5U), (unsigned int)valores[i],
+                       ocupado ? "OCUPADO" : "NO OCUPADO");
+        Serial_Texto(mensaje);
+      }
+      (void)snprintf(mensaje, sizeof(mensaje),
+                     "STM1: %u ocupados / %u libres (de 4)\r\n",
+                     (unsigned int)ocupados, (unsigned int)(4U - ocupados));
+      Serial_Texto(mensaje);
+    }
+    bloques_anteriores = bloques;
+    Serial_Texto("----------------------------------------\r\n");
+    HAL_Delay(500);
+  }
+/* USER CODE END 3 */
+}
 /**
   * @brief System Clock Configuration
   * @retval None
@@ -141,12 +176,10 @@ void SystemClock_Config(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
-
   /** Configure the main internal regulator output voltage
   */
   __HAL_RCC_PWR_CLK_ENABLE();
   __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE3);
-
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
@@ -164,7 +197,6 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
-
   /** Initializes the CPU, AHB and APB buses clocks
   */
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
@@ -173,73 +205,182 @@ void SystemClock_Config(void)
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
-
   if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK)
   {
     Error_Handler();
   }
 }
-
-/* USER CODE BEGIN 4 */
-// Callback de interrupción que se ejecuta automáticamente ante cada flanco de subida en el pin PA0
-void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
+/**
+  * @brief ADC1 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_ADC1_Init(void)
 {
-    // Verificación para asegurar que la interrupción pertenece al temporizador TIM2
-    if (htim->Instance == TIM2)
-    {
-        if (primer_flanco_leido == 0) // Primer punto de la onda (inicio de ciclo)
-        {
-            // Captura del primer tiempo registrado por el contador del timer
-            subida_anterior = HAL_TIM_ReadCapturedValue(htim, TIM_CHANNEL_1);
-            primer_flanco_leido = 1; // Indicación de que ya se registró la primera marca de tiempo
-        }
-        else // Segundo punto de la onda (fin del ciclo medido)
-        {
-            // Captura del segundo tiempo registrado
-            subida_actual = HAL_TIM_ReadCapturedValue(htim, TIM_CHANNEL_1);
-
-            // Cálculo de la diferencia de tiempo. Se maneja el caso de desbordamiento por si el contador llega a cero entre medidas.
-            if (subida_actual >= subida_anterior)
-            {
-                ticks_diferencia = subida_actual - subida_anterior;
-            }
-            else
-            {
-                ticks_diferencia = (0xFFFFFFFF - subida_anterior) + subida_actual + 1;
-            }
-
-            // Cálculo final de la frecuencia. Al tener una base de tiempo de 1 MHz, un tick representa 1 microsegundo.
-            // Frecuencia = 1,000,000 Hz / ticks_transcurridos
-            if (ticks_diferencia > 0)
-            {
-                frecuencia_final = 1000000 / ticks_diferencia;
-            }
-
-            // Se hace Restablecimiento de la bandera para iniciar la lectura del siguiente ciclo de onda
-            primer_flanco_leido = 0;
-        }
-    }
-} // AQUÍ SE CIERRA CORRECTAMENTE LA FUNCIÓN DE CAPTURA
-
-// Esta función se ejecuta automáticamente cuando TIM3 o TIM4 completan su conteo de tiempo (desbordamiento)
-void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
-{
-    // Si la interrupción proviene de TIM3 (cada 250 ms)
-    if (htim->Instance == TIM3)
-    {
-        // Cambia el estado del pin PB3 (de encendido a apagado, o viceversa)
-        HAL_GPIO_TogglePin(LED_500ms_GPIO_Port, LED_500ms_Pin);
-    }
-
-    // Si la interrupción proviene de TIM4 (cada 1000 ms o 1 segundo)
-    if (htim->Instance == TIM4)
-    {
-        // Cambia el estado del pin PB4 (de encendido a apagado, o viceversa)
-        HAL_GPIO_TogglePin(LED_2s_GPIO_Port, LED_2s_Pin);
-    }
+  /* USER CODE BEGIN ADC1_Init 0 */
+  /* USER CODE END ADC1_Init 0 */
+  ADC_ChannelConfTypeDef sConfig = {0};
+  /* USER CODE BEGIN ADC1_Init 1 */
+  /* USER CODE END ADC1_Init 1 */
+  /** Configure the global features of the ADC (Clock, Resolution, Data Alignment and number of conversion)
+  */
+  hadc1.Instance = ADC1;
+  hadc1.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV4;
+  hadc1.Init.Resolution = ADC_RESOLUTION_12B;
+  hadc1.Init.ScanConvMode = ENABLE;
+  hadc1.Init.ContinuousConvMode = ENABLE;
+  hadc1.Init.DiscontinuousConvMode = DISABLE;
+  hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
+  hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
+  hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
+  hadc1.Init.NbrOfConversion = 4;
+  hadc1.Init.DMAContinuousRequests = ENABLE;
+  hadc1.Init.EOCSelection = ADC_EOC_SEQ_CONV;
+  if (HAL_ADC_Init(&hadc1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /** Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time.
+  */
+  sConfig.Channel = ADC_CHANNEL_0;
+  sConfig.Rank = 1;
+  sConfig.SamplingTime = ADC_SAMPLETIME_480CYCLES;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /** Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time.
+  */
+  sConfig.Channel = ADC_CHANNEL_1;
+  sConfig.Rank = 2;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /** Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time.
+  */
+  sConfig.Channel = ADC_CHANNEL_4;
+  sConfig.Rank = 3;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /** Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time.
+  */
+  sConfig.Channel = ADC_CHANNEL_8;
+  sConfig.Rank = 4;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN ADC1_Init 2 */
+  /* USER CODE END ADC1_Init 2 */
 }
-/* USER CODE END 4 */
+/**
+  * @brief USART2 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_USART2_UART_Init(void)
+{
+  /* USER CODE BEGIN USART2_Init 0 */
+  /* USER CODE END USART2_Init 0 */
+  /* USER CODE BEGIN USART2_Init 1 */
+  /* USER CODE END USART2_Init 1 */
+  huart2.Instance = USART2;
+  huart2.Init.BaudRate = 115200;
+  huart2.Init.WordLength = UART_WORDLENGTH_8B;
+  huart2.Init.StopBits = UART_STOPBITS_1;
+  huart2.Init.Parity = UART_PARITY_NONE;
+  huart2.Init.Mode = UART_MODE_TX_RX;
+  huart2.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart2.Init.OverSampling = UART_OVERSAMPLING_16;
+  if (HAL_UART_Init(&huart2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN USART2_Init 2 */
+  /* USER CODE END USART2_Init 2 */
+}
+/**
+  * Enable DMA controller clock
+  */
+static void MX_DMA_Init(void)
+{
+  /* DMA controller clock enable */
+  __HAL_RCC_DMA2_CLK_ENABLE();
+  /* DMA interrupt init */
+  /* DMA2_Stream0_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA2_Stream0_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA2_Stream0_IRQn);
+}
+/**
+  * @brief GPIO Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_GPIO_Init(void)
+{
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
+  /* USER CODE BEGIN MX_GPIO_Init_1 */
+  /* USER CODE END MX_GPIO_Init_1 */
+  /* GPIO Ports Clock Enable */
+  __HAL_RCC_GPIOC_CLK_ENABLE();
+  __HAL_RCC_GPIOH_CLK_ENABLE();
+  __HAL_RCC_GPIOA_CLK_ENABLE();
+  __HAL_RCC_GPIOB_CLK_ENABLE();
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_RESET);
+  /*Configure GPIO pin : B1_Pin */
+  GPIO_InitStruct.Pin = B1_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(B1_GPIO_Port, &GPIO_InitStruct);
+  /*Configure GPIO pin : LD2_Pin */
+  GPIO_InitStruct.Pin = LD2_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(LD2_GPIO_Port, &GPIO_InitStruct);
+  /* USER CODE BEGIN MX_GPIO_Init_2 */
+  /* USER CODE END MX_GPIO_Init_2 */
+}
+/* USER CODE BEGIN 4 */
+static void Serial_Texto(const char *texto)
+{
+  (void)HAL_UART_Transmit(&huart2, (uint8_t *)texto,
+                         (uint16_t)strlen(texto), 100U);
+}
 
+/* Se procesa la mitad que DMA acaba de completar; DMA escribe la otra. */
+static void Promediar_Mitad(uint32_t inicio)
+{
+  for (uint32_t canal = 0; canal < LDR_COUNT; canal++)
+  {
+    uint32_t suma = 0;
+    for (uint32_t k = 0; k < SAMPLES_PER_HALF; k++)
+      suma += adc_dma[inicio + k * LDR_COUNT + canal];
+    adc_promedio[canal] = (uint16_t)(suma / SAMPLES_PER_HALF);
+  }
+  adc_bloques++;
+}
+
+void HAL_ADC_ConvHalfCpltCallback(ADC_HandleTypeDef *hadc)
+{
+  if (hadc->Instance == ADC1) Promediar_Mitad(0U);
+}
+
+void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc)
+{
+  if (hadc->Instance == ADC1) Promediar_Mitad(DMA_SAMPLES / 2U);
+}
+
+void HAL_ADC_ErrorCallback(ADC_HandleTypeDef *hadc)
+{
+  if (hadc->Instance == ADC1) adc_error = 1U;
+}
+
+/* USER CODE END 4 */
 /**
   * @brief  This function is executed in case of error occurrence.
   * @retval None

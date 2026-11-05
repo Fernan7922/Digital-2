@@ -2,297 +2,172 @@
 /**
   ******************************************************************************
   * @file           : main.c
-  * @brief          : - Laboratorio 7 (Reproductor de Audio)
+  * @brief          : Main program body
+  ******************************************************************************
+  * @attention
+  *
+  * Copyright (c) 2026 STMicroelectronics.
+  * All rights reserved.
+  *
+  * This software is licensed under terms that can be found in the LICENSE file
+  * in the root directory of this software component.
+  * If no LICENSE file comes with this software, it is provided AS-IS.
+  *
   ******************************************************************************
   */
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
+/* Reemplazo completo de Core/Src/main.c para el proyecto CubeMX existente.
+ * Requiere main.h, stm32f4xx_hal_msp.c y stm32f4xx_it.c generados.
+ * En MSP: PA0/PA1/PA4/PB0 analogicos, USART2 PA2/PA3 AF7;
+ * ADC1 DMA2_Stream0 Channel0, circular, Half Word, MemoryInc habilitado;
+ * __HAL_LINKDMA(hadc, DMA_Handle, hdma_adc1).
+ * En IRQ: DMA2_Stream0_IRQHandler llama HAL_DMA_IRQHandler(&hdma_adc1).
+ * Divisor: 3V3 -> LDR -> ADC -> resistencia 10k -> GND.
+ * Menos luz debe reducir la lectura. Los umbrales NO estan calibrados.
+ * Esta prueba usa un umbral unico y no aplica histeresis ni antirrebote.
+ */
 #include "main.h"
-
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include <stdio.h>
 #include <string.h>
 /* USER CODE END Includes */
-
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-
 /* USER CODE END PTD */
-
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-/* --- Frecuencias de las notas musicales (en Hz)  */
-#define NOTE_C4   262
-#define NOTE_CS4  277
-#define NOTE_D4   294
-#define NOTE_DS4  311
-#define NOTE_E4   330
-#define NOTE_F4   349
-#define NOTE_FS4  370
-#define NOTE_G4   392
-#define NOTE_GS4  415
-#define NOTE_A4   440
-#define NOTE_AS4  466
-#define NOTE_B4   494
-#define NOTE_C5   523
-#define NOTE_CS5  554
-#define NOTE_D5   587
-#define NOTE_DS5  622
-#define NOTE_E5   659
-#define NOTE_F5   698
-#define NOTE_FS5  740
-#define NOTE_G5   784
-#define NOTE_GS5  831
-#define NOTE_A5   880
-#define REST      0
+#define LDR_COUNT 4U
+#define DMA_SAMPLES 128U
+#define SAMPLES_PER_HALF 16U
+/* PROVISIONAL: ajustar al observar lecturas libres y cubiertas. */
+#define UMBRAL_OCUPADO 1800U
 /* USER CODE END PD */
-
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
-
 /* USER CODE END PM */
-
 /* Private variables ---------------------------------------------------------*/
-DAC_HandleTypeDef hdac;
-
-TIM_HandleTypeDef htim3;
-TIM_HandleTypeDef htim6;
-
+ADC_HandleTypeDef hadc1;
+DMA_HandleTypeDef hdma_adc1;
 UART_HandleTypeDef huart2;
-
 /* USER CODE BEGIN PV */
-/* TEMA 1: SUPER MARIO BROS (~10 Segundos) ==================== */
-const uint16_t mario_notes[] = {
-    NOTE_E5, NOTE_E5, REST,    NOTE_E5, REST,    NOTE_C5, NOTE_E5, REST,
-    NOTE_G5, REST,    NOTE_G4, REST,
-    NOTE_C5, REST,    NOTE_G4, REST,    NOTE_E4, REST,
-    NOTE_A4, REST,    NOTE_B4, REST,    NOTE_AS4, NOTE_A4, REST,
-    NOTE_G4, NOTE_E5, NOTE_G5, NOTE_A5, REST,    NOTE_F5, NOTE_G5,
-    REST,    NOTE_E5, REST,    NOTE_C5, NOTE_D5, NOTE_B4
-};
-
-const uint16_t mario_durations[] = {
-    150, 150, 150, 150, 150, 150, 300, 150,
-    450, 400, 450, 400,
-    350, 200, 350, 200, 350, 200,
-    300, 150, 300, 150, 200, 250, 150,
-    250, 250, 250, 350, 150, 200, 350,
-    150, 300, 150, 200, 200, 1000
-};
-const uint16_t MARIO_LEN = sizeof(mario_notes) / sizeof(mario_notes[0]);
-
-/* TEMA 2: STAR WARS - MARCHA IMPERIAL 10s) ==================== */
-const uint16_t starwars_notes[] = {
-    NOTE_A4, NOTE_A4, NOTE_A4, NOTE_F4, NOTE_C5,
-    NOTE_A4, NOTE_F4, NOTE_C5, NOTE_A4, REST,
-    NOTE_E5, NOTE_E5, NOTE_E5, NOTE_F5, NOTE_C5,
-    NOTE_GS4, NOTE_F4, NOTE_C5, NOTE_A4, REST,
-    NOTE_A5, NOTE_A4, NOTE_A4, NOTE_A5, NOTE_GS5, NOTE_A5
-};
-
-const uint16_t starwars_durations[] = {
-    500, 500, 500, 350, 150,
-    500, 350, 150, 650, 350,
-    500, 500, 500, 350, 150,
-    500, 350, 150, 650, 350,
-    500, 250, 250, 400, 300, 300
-};
-const uint16_t STARWARS_LEN = sizeof(starwars_notes) / sizeof(starwars_notes[0]);
-
-/* Tabla senoidal precalculada de 64 muestras (12 bits) para el DAC */
-const uint16_t sine_lut[64] = {
-    2048, 2248, 2447, 2642, 2831, 3013, 3185, 3346,
-    3495, 3630, 3750, 3853, 3939, 4007, 4056, 4085,
-    4095, 4085, 4056, 4007, 3939, 3853, 3750, 3630,
-    3495, 3346, 3185, 3013, 2831, 2642, 2447, 2248,
-    2048, 1847, 1648, 1453, 1264, 1082,  910,  749,
-     600,  465,  345,  242,  156,   88,   39,   10,
-       0,   10,   39,   88,  156,  242,  345,  465,
-     600,  749,  910, 1082, 1264, 1453, 1648, 1847
-};
-
-volatile uint32_t dac_phase_acc = 0;
-volatile uint32_t dac_phase_step = 0;
+static volatile uint16_t adc_dma[DMA_SAMPLES] __attribute__((aligned(4)));
+static volatile uint16_t adc_promedio[LDR_COUNT];
+static volatile uint32_t adc_bloques = 0;
+static volatile uint32_t adc_error = 0;
+static uint32_t bloques_anteriores = 0;
+static uint8_t adc_iniciado = 0;
 /* USER CODE END PV */
-
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
-static void MX_TIM3_Init(void);
+static void MX_DMA_Init(void);
+static void MX_ADC1_Init(void);
 static void MX_USART2_UART_Init(void);
-static void MX_DAC_Init(void);
-static void MX_TIM6_Init(void);
 /* USER CODE BEGIN PFP */
-void Tocar_Tono(uint32_t freq);
-void DAC_PlayTone(uint32_t freq);
-void Reproducir_Tema1_Mario(void);
-void Reproducir_Tema2_StarWars(void);
-void Mostrar_Menu(void);
+static void Serial_Texto(const char *texto);
+static void Promediar_Mitad(uint32_t inicio);
 /* USER CODE END PFP */
-
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-// Redirección de printf a la terminal USART2 (USB)
-int __io_putchar(int ch) {
-    HAL_UART_Transmit(&huart2, (uint8_t *)&ch, 1, HAL_MAX_DELAY);
-    return ch;
-}
-
-// Configura la frecuencia del PWM en TIM3 Canal 1 (Pin PA6)
-void Tocar_Tono(uint32_t freq) {
-    if (freq == 0) {
-        __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, 0); // Silencio
-    } else {
-        // Reloj del Timer = 1 MHz -> Periodo (ARR) = (1,000,000 / freq) - 1
-        uint32_t arr = (1000000 / freq) - 1;
-        __HAL_TIM_SET_AUTORELOAD(&htim3, arr);
-        __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_1, arr / 2); // Ciclo de trabajo al 50%
-    }
-}
-
-// Configura el tono analógico para el DAC (Pin PA4)
-void DAC_PlayTone(uint32_t freq) {
-    if (freq == 0) {
-        dac_phase_step = 0;
-        HAL_DAC_SetValue(&hdac, DAC_CHANNEL_1, DAC_ALIGN_12B_R, 0);
-    } else {
-        // Incremento de fase para TIM6 a 20 kHz
-        dac_phase_step = (uint32_t)(((uint64_t)freq * 64 * 65536) / 20000);
-    }
-}
-
-// Reproduce Tema 1 por PWM
-void Reproducir_Tema1_Mario(void) {
-    // Apagar DAC para la Forma B
-    HAL_TIM_Base_Stop_IT(&htim6);
-    HAL_DAC_Stop(&hdac, DAC_CHANNEL_1);
-    HAL_DAC_SetValue(&hdac, DAC_CHANNEL_1, DAC_ALIGN_12B_R, 0);
-
-    printf("\r\n Reproduce 1: Super Mario Bros (10s\r\n");
-    HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
-
-    for (int i = 0; i < MARIO_LEN; i++) {
-        Tocar_Tono(mario_notes[i]);
-        HAL_Delay(mario_durations[i] * 0.85); // 85% sonando la nota
-
-        Tocar_Tono(REST);
-        HAL_Delay(mario_durations[i] * 0.15); // 15% pausa entre notas
-    }
-
-    Tocar_Tono(REST);
-    HAL_TIM_PWM_Stop(&htim3, TIM_CHANNEL_1);
-    printf(" Fin de reproduccion Audio 1.\r\n");
-}
-
-// Reproduce Tema 2 por DAC
-void Reproducir_Tema2_StarWars(void) {
-    // Apagar PWM para la Forma B
-    Tocar_Tono(REST);
-    HAL_TIM_PWM_Stop(&htim3, TIM_CHANNEL_1);
-
-    printf("\r\n Reproduce 2: Star Wars Marcha Imperial (DAC)\r\n");
-    HAL_DAC_Start(&hdac, DAC_CHANNEL_1);
-    HAL_TIM_Base_Start_IT(&htim6); // Inicia interrupción del DAC a 20 kHz
-
-    for (int i = 0; i < STARWARS_LEN; i++) {
-        DAC_PlayTone(starwars_notes[i]);
-        HAL_Delay(starwars_durations[i] * 0.85);
-
-        DAC_PlayTone(REST);
-        HAL_Delay(starwars_durations[i] * 0.15);
-    }
-
-    HAL_TIM_Base_Stop_IT(&htim6);
-    DAC_PlayTone(REST);
-    HAL_DAC_SetValue(&hdac, DAC_CHANNEL_1, DAC_ALIGN_12B_R, 0);
-    HAL_DAC_Stop(&hdac, DAC_CHANNEL_1);
-    printf("Fin de reproduccion Audio 2.\r\n");
-}
-
-// Despliega el menú serial requerido en la Parte 1
-void Mostrar_Menu(void) {
-    printf("       LABORATORIO 7 - REPRODUCTOR DE AUDIO       \r\n");
-    printf(" Audios disponibles para reproducir:\r\n");
-    printf("  Audio 1: Pone Super Mario Bros (PWM - 10 seg)\r\n");
-    printf("   Audio 2: Pone Wars Imperial (DAC - 10 seg)\r\n");
-}
 /* USER CODE END 0 */
-
 /**
   * @brief  The application entry point.
   * @retval int
   */
 int main(void)
 {
-
   /* USER CODE BEGIN 1 */
-
   /* USER CODE END 1 */
-
   /* MCU Configuration--------------------------------------------------------*/
-
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
-
   /* USER CODE BEGIN Init */
-
   /* USER CODE END Init */
-
   /* Configure the system clock */
   SystemClock_Config();
-
   /* USER CODE BEGIN SysInit */
-
   /* USER CODE END SysInit */
-
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  MX_TIM3_Init();
+  MX_DMA_Init();
+  MX_ADC1_Init();
   MX_USART2_UART_Init();
-  MX_DAC_Init();
-  MX_TIM6_Init();
   /* USER CODE BEGIN 2 */
-  // Asegurar interrupción activa para TIM6/DAC
-  HAL_NVIC_SetPriority(TIM6_DAC_IRQn, 1, 0);
-  HAL_NVIC_EnableIRQ(TIM6_DAC_IRQn);
-
-  // Mostrar el menú en la terminal al iniciar
-  Mostrar_Menu();
-  /* USER CODE END 2 */
-
+HAL_Delay(1000);
+  Serial_Texto("\r\nSTM1 INICIADA - SERIAL FUNCIONANDO\r\n"
+               "USART2: 115200 8N1. P5=PA0 P6=PA1 P7=PA4 P8=PB0\r\n"
+               "Umbral provisional: ADC < 1800 = OCUPADO.\r\n");
+  /* El proyecto CubeMX debe enlazar ADC1 con DMA2 Stream0/Channel0,
+     circular, incremento de memoria y tamanos Half Word. */
+  if (HAL_ADC_Start_DMA(&hadc1, (uint32_t *)adc_dma, DMA_SAMPLES) == HAL_OK)
+  {
+    adc_iniciado = 1U;
+    Serial_Texto("ADC/DMA iniciado. Esperando muestras...\r\n");
+  }
+  else
+  {
+    /* Mantener vivo el serial para diagnosticar, sin fingir lecturas. */
+    Serial_Texto("ERROR: no se pudo iniciar ADC/DMA.\r\n");
+  }
+/* USER CODE END 2 */
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
-      uint8_t opcion;
-
-      // Esperar comando por UART (timeout de 100 ms)
-      if (HAL_UART_Receive(&huart2, &opcion, 1, 100) == HAL_OK) {
-          // Eco en pantalla de la tecla pulsada
-          HAL_UART_Transmit(&huart2, &opcion, 1, HAL_MAX_DELAY);
-          printf("\r\n");
-
-          if (opcion == '1') {
-              Reproducir_Tema1_Mario();
-              Mostrar_Menu();
-          }
-          else if (opcion == '2') {
-              Reproducir_Tema2_StarWars();
-              Mostrar_Menu();
-          }
-          else {
-              printf("\r\n[!] Comando invalido. Por favor presione '1' o '2'.\r\n");
-              Mostrar_Menu();
-          }
-      }
     /* USER CODE END WHILE */
-
     /* USER CODE BEGIN 3 */
-  }
-  /* USER CODE END 3 */
-}
+char mensaje[160];
+    uint16_t valores[LDR_COUNT];
+    uint32_t primask = __get_PRIMASK();
+    __disable_irq();
+    uint32_t bloques = adc_bloques;
+    for (uint32_t i = 0; i < LDR_COUNT; i++) valores[i] = adc_promedio[i];
+    __set_PRIMASK(primask);
 
+    HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
+
+    if (!adc_iniciado)
+    {
+      Serial_Texto("STM1 ACTIVA - ERROR AL INICIAR ADC/DMA\r\n");
+    }
+    else if (adc_error != 0U)
+    {
+      Serial_Texto("STM1 ACTIVA - ERROR ADC/DMA. Revisar configuracion.\r\n");
+    }
+    else if (bloques == 0U)
+    {
+      Serial_Texto("STM1 ACTIVA - ESPERANDO LECTURAS ADC. Revisar MSP/IRQ DMA.\r\n");
+    }
+    else if (bloques == bloques_anteriores)
+    {
+      Serial_Texto("STM1 ACTIVA - ADC SIN DATOS NUEVOS. Revisar DMA circular.\r\n");
+    }
+    else
+    {
+      uint32_t ocupados = 0U;
+      for (uint32_t i = 0; i < LDR_COUNT; i++)
+      {
+        uint8_t ocupado = (valores[i] < UMBRAL_OCUPADO);
+        ocupados += ocupado;
+        (void)snprintf(mensaje, sizeof(mensaje),
+                       "P%u: ADC=%u - %s\r\n",
+                       (unsigned int)(i + 5U), (unsigned int)valores[i],
+                       ocupado ? "OCUPADO" : "NO OCUPADO");
+        Serial_Texto(mensaje);
+      }
+      (void)snprintf(mensaje, sizeof(mensaje),
+                     "STM1: %u ocupados / %u libres (de 4)\r\n",
+                     (unsigned int)ocupados, (unsigned int)(4U - ocupados));
+      Serial_Texto(mensaje);
+    }
+    bloques_anteriores = bloques;
+    Serial_Texto("----------------------------------------\r\n");
+    HAL_Delay(500);
+  }
+/* USER CODE END 3 */
+}
 /**
   * @brief System Clock Configuration
   * @retval None
@@ -301,12 +176,10 @@ void SystemClock_Config(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
-
   /** Configure the main internal regulator output voltage
   */
   __HAL_RCC_PWR_CLK_ENABLE();
   __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE3);
-
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
@@ -324,7 +197,6 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
-
   /** Initializes the CPU, AHB and APB buses clocks
   */
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
@@ -333,150 +205,77 @@ void SystemClock_Config(void)
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
-
   if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK)
   {
     Error_Handler();
   }
 }
-
 /**
-  * @brief DAC Initialization Function
+  * @brief ADC1 Initialization Function
   * @param None
   * @retval None
   */
-static void MX_DAC_Init(void)
+static void MX_ADC1_Init(void)
 {
-
-  /* USER CODE BEGIN DAC_Init 0 */
-
-  /* USER CODE END DAC_Init 0 */
-
-  DAC_ChannelConfTypeDef sConfig = {0};
-
-  /* USER CODE BEGIN DAC_Init 1 */
-
-  /* USER CODE END DAC_Init 1 */
-
-  /** DAC Initialization
+  /* USER CODE BEGIN ADC1_Init 0 */
+  /* USER CODE END ADC1_Init 0 */
+  ADC_ChannelConfTypeDef sConfig = {0};
+  /* USER CODE BEGIN ADC1_Init 1 */
+  /* USER CODE END ADC1_Init 1 */
+  /** Configure the global features of the ADC (Clock, Resolution, Data Alignment and number of conversion)
   */
-  hdac.Instance = DAC;
-  if (HAL_DAC_Init(&hdac) != HAL_OK)
+  hadc1.Instance = ADC1;
+  hadc1.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV4;
+  hadc1.Init.Resolution = ADC_RESOLUTION_12B;
+  hadc1.Init.ScanConvMode = ENABLE;
+  hadc1.Init.ContinuousConvMode = ENABLE;
+  hadc1.Init.DiscontinuousConvMode = DISABLE;
+  hadc1.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
+  hadc1.Init.ExternalTrigConv = ADC_SOFTWARE_START;
+  hadc1.Init.DataAlign = ADC_DATAALIGN_RIGHT;
+  hadc1.Init.NbrOfConversion = 4;
+  hadc1.Init.DMAContinuousRequests = ENABLE;
+  hadc1.Init.EOCSelection = ADC_EOC_SEQ_CONV;
+  if (HAL_ADC_Init(&hadc1) != HAL_OK)
   {
     Error_Handler();
   }
-
-  /** DAC channel OUT1 config
+  /** Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time.
   */
-  sConfig.DAC_Trigger = DAC_TRIGGER_NONE;
-  sConfig.DAC_OutputBuffer = DAC_OUTPUTBUFFER_ENABLE;
-  if (HAL_DAC_ConfigChannel(&hdac, &sConfig, DAC_CHANNEL_1) != HAL_OK)
+  sConfig.Channel = ADC_CHANNEL_0;
+  sConfig.Rank = 1;
+  sConfig.SamplingTime = ADC_SAMPLETIME_480CYCLES;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
   {
     Error_Handler();
   }
-  /* USER CODE BEGIN DAC_Init 2 */
-
-  /* USER CODE END DAC_Init 2 */
-
+  /** Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time.
+  */
+  sConfig.Channel = ADC_CHANNEL_1;
+  sConfig.Rank = 2;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /** Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time.
+  */
+  sConfig.Channel = ADC_CHANNEL_4;
+  sConfig.Rank = 3;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /** Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time.
+  */
+  sConfig.Channel = ADC_CHANNEL_8;
+  sConfig.Rank = 4;
+  if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN ADC1_Init 2 */
+  /* USER CODE END ADC1_Init 2 */
 }
-
-/**
-  * @brief TIM3 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_TIM3_Init(void)
-{
-
-  /* USER CODE BEGIN TIM3_Init 0 */
-
-  /* USER CODE END TIM3_Init 0 */
-
-  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
-  TIM_MasterConfigTypeDef sMasterConfig = {0};
-  TIM_OC_InitTypeDef sConfigOC = {0};
-
-  /* USER CODE BEGIN TIM3_Init 1 */
-
-  /* USER CODE END TIM3_Init 1 */
-  htim3.Instance = TIM3;
-  htim3.Init.Prescaler = 83;
-  htim3.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim3.Init.Period = 1000;
-  htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
-  htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
-  if (HAL_TIM_Base_Init(&htim3) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
-  if (HAL_TIM_ConfigClockSource(&htim3, &sClockSourceConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  if (HAL_TIM_PWM_Init(&htim3) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
-  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
-  if (HAL_TIMEx_MasterConfigSynchronization(&htim3, &sMasterConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sConfigOC.OCMode = TIM_OCMODE_PWM1;
-  sConfigOC.Pulse = 0;
-  sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
-  sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
-  if (HAL_TIM_PWM_ConfigChannel(&htim3, &sConfigOC, TIM_CHANNEL_1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN TIM3_Init 2 */
-
-  /* USER CODE END TIM3_Init 2 */
-  HAL_TIM_MspPostInit(&htim3);
-
-}
-
-/**
-  * @brief TIM6 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_TIM6_Init(void)
-{
-
-  /* USER CODE BEGIN TIM6_Init 0 */
-
-  /* USER CODE END TIM6_Init 0 */
-
-  TIM_MasterConfigTypeDef sMasterConfig = {0};
-
-  /* USER CODE BEGIN TIM6_Init 1 */
-
-  /* USER CODE END TIM6_Init 1 */
-  htim6.Instance = TIM6;
-  htim6.Init.Prescaler = 83;
-  htim6.Init.CounterMode = TIM_COUNTERMODE_UP;
-  htim6.Init.Period = 49;
-  htim6.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
-  if (HAL_TIM_Base_Init(&htim6) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
-  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
-  if (HAL_TIMEx_MasterConfigSynchronization(&htim6, &sMasterConfig) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN TIM6_Init 2 */
-
-  /* USER CODE END TIM6_Init 2 */
-
-}
-
 /**
   * @brief USART2 Initialization Function
   * @param None
@@ -484,13 +283,9 @@ static void MX_TIM6_Init(void)
   */
 static void MX_USART2_UART_Init(void)
 {
-
   /* USER CODE BEGIN USART2_Init 0 */
-
   /* USER CODE END USART2_Init 0 */
-
   /* USER CODE BEGIN USART2_Init 1 */
-
   /* USER CODE END USART2_Init 1 */
   huart2.Instance = USART2;
   huart2.Init.BaudRate = 115200;
@@ -505,11 +300,20 @@ static void MX_USART2_UART_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN USART2_Init 2 */
-
   /* USER CODE END USART2_Init 2 */
-
 }
-
+/**
+  * Enable DMA controller clock
+  */
+static void MX_DMA_Init(void)
+{
+  /* DMA controller clock enable */
+  __HAL_RCC_DMA2_CLK_ENABLE();
+  /* DMA interrupt init */
+  /* DMA2_Stream0_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA2_Stream0_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA2_Stream0_IRQn);
+}
 /**
   * @brief GPIO Initialization Function
   * @param None
@@ -519,49 +323,64 @@ static void MX_GPIO_Init(void)
 {
   GPIO_InitTypeDef GPIO_InitStruct = {0};
   /* USER CODE BEGIN MX_GPIO_Init_1 */
-
   /* USER CODE END MX_GPIO_Init_1 */
-
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOH_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
-
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_RESET);
-
   /*Configure GPIO pin : B1_Pin */
   GPIO_InitStruct.Pin = B1_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(B1_GPIO_Port, &GPIO_InitStruct);
-
   /*Configure GPIO pin : LD2_Pin */
   GPIO_InitStruct.Pin = LD2_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(LD2_GPIO_Port, &GPIO_InitStruct);
-
   /* USER CODE BEGIN MX_GPIO_Init_2 */
-
   /* USER CODE END MX_GPIO_Init_2 */
 }
-
 /* USER CODE BEGIN 4 */
-// Callback de TIM6 a 20 kHz que actualiza el valor analógico del DAC en PA4
-void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
-    if (htim->Instance == TIM6) {
-        if (dac_phase_step > 0) {
-            dac_phase_acc += dac_phase_step;
-            uint8_t index = (dac_phase_acc >> 16) & 0x3F; // Máscara de 64 muestras
-            HAL_DAC_SetValue(&hdac, DAC_CHANNEL_1, DAC_ALIGN_12B_R, sine_lut[index]);
-        }
-    }
+static void Serial_Texto(const char *texto)
+{
+  (void)HAL_UART_Transmit(&huart2, (uint8_t *)texto,
+                         (uint16_t)strlen(texto), 100U);
 }
-/* USER CODE END 4 */
 
+/* Se procesa la mitad que DMA acaba de completar; DMA escribe la otra. */
+static void Promediar_Mitad(uint32_t inicio)
+{
+  for (uint32_t canal = 0; canal < LDR_COUNT; canal++)
+  {
+    uint32_t suma = 0;
+    for (uint32_t k = 0; k < SAMPLES_PER_HALF; k++)
+      suma += adc_dma[inicio + k * LDR_COUNT + canal];
+    adc_promedio[canal] = (uint16_t)(suma / SAMPLES_PER_HALF);
+  }
+  adc_bloques++;
+}
+
+void HAL_ADC_ConvHalfCpltCallback(ADC_HandleTypeDef *hadc)
+{
+  if (hadc->Instance == ADC1) Promediar_Mitad(0U);
+}
+
+void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *hadc)
+{
+  if (hadc->Instance == ADC1) Promediar_Mitad(DMA_SAMPLES / 2U);
+}
+
+void HAL_ADC_ErrorCallback(ADC_HandleTypeDef *hadc)
+{
+  if (hadc->Instance == ADC1) adc_error = 1U;
+}
+
+/* USER CODE END 4 */
 /**
   * @brief  This function is executed in case of error occurrence.
   * @retval None
@@ -569,17 +388,26 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
 void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
+  /* User can add his own implementation to report the HAL error return state */
   __disable_irq();
   while (1)
   {
   }
   /* USER CODE END Error_Handler_Debug */
 }
-
 #ifdef USE_FULL_ASSERT
+/**
+  * @brief  Reports the name of the source file and the source line number
+  *         where the assert_param error has occurred.
+  * @param  file: pointer to the source file name
+  * @param  line: assert_param error line source number
+  * @retval None
+  */
 void assert_failed(uint8_t *file, uint32_t line)
 {
   /* USER CODE BEGIN 6 */
+  /* User can add his own implementation to report the file name and line number,
+     ex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
   /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */
