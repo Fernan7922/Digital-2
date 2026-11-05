@@ -1,0 +1,17 @@
+../Core/Src/main.c:103:13:Serial_Enviar	16	static
+../Core/Src/main.c:117:13:NeoPixel_PinReposo	32	static
+../Core/Src/main.c:133:13:NeoPixel_PinPWM	32	static
+../Core/Src/main.c:146:13:NeoPixel_Todos	24	static
+../Core/Src/main.c:156:26:NeoPixel_Mostrar	40	static
+../Core/Src/main.c:270:13:Mostrar_Ayuda	8	static
+../Core/Src/main.c:293:13:Mostrar_Colores	24	static
+../Core/Src/main.c:334:13:Procesar_Comando	24	static
+../Core/Src/main.c:409:5:main	16	static
+../Core/Src/main.c:515:6:SystemClock_Config	88	static
+../Core/Src/main.c:552:13:MX_TIM3_Init	64	static
+../Core/Src/main.c:620:13:MX_USART2_UART_Init	8	static
+../Core/Src/main.c:646:13:MX_DMA_Init	16	static
+../Core/Src/main.c:654:13:MX_GPIO_Init	48	static
+../Core/Src/main.c:689:6:HAL_TIM_PWM_PulseFinishedCallback	16	static
+../Core/Src/main.c:698:6:HAL_TIM_ErrorCallback	16	static
+../Core/Src/main.c:708:6:Error_Handler	4	static,ignoring_inline_asm

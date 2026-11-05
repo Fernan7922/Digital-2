@@ -1,0 +1,17 @@
+../Core/Src/main.c:103:13:Serial_Enviar	1
+../Core/Src/main.c:117:13:NeoPixel_PinReposo	1
+../Core/Src/main.c:133:13:NeoPixel_PinPWM	1
+../Core/Src/main.c:146:13:NeoPixel_Todos	2
+../Core/Src/main.c:156:26:NeoPixel_Mostrar	18
+../Core/Src/main.c:270:13:Mostrar_Ayuda	1
+../Core/Src/main.c:293:13:Mostrar_Colores	5
+../Core/Src/main.c:334:13:Procesar_Comando	15
+../Core/Src/main.c:409:5:main	17
+../Core/Src/main.c:515:6:SystemClock_Config	3
+../Core/Src/main.c:552:13:MX_TIM3_Init	6
+../Core/Src/main.c:620:13:MX_USART2_UART_Init	2
+../Core/Src/main.c:646:13:MX_DMA_Init	1
+../Core/Src/main.c:654:13:MX_GPIO_Init	1
+../Core/Src/main.c:689:6:HAL_TIM_PWM_PulseFinishedCallback	3
+../Core/Src/main.c:698:6:HAL_TIM_ErrorCallback	2
+../Core/Src/main.c:708:6:Error_Handler	1
