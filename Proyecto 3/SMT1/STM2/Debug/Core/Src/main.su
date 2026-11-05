@@ -1,0 +1,11 @@
+../Core/Src/main.c:121:13:Serial_Enviar	16	static
+../Core/Src/main.c:131:26:LDR_Leer	48	static
+../Core/Src/main.c:181:26:LDR_Calibrar	64	static
+../Core/Src/main.c:280:13:LDR_ActualizarEstados	16	static
+../Core/Src/main.c:307:13:LDR_MostrarEstados	48	static
+../Core/Src/main.c:352:5:main	32	static
+../Core/Src/main.c:452:6:SystemClock_Config	88	static
+../Core/Src/main.c:490:13:MX_ADC1_Init	56	static
+../Core/Src/main.c:557:13:MX_USART2_UART_Init	8	static
+../Core/Src/main.c:587:13:MX_GPIO_Init	48	static
+../Core/Src/main.c:623:6:Error_Handler	4	static,ignoring_inline_asm
