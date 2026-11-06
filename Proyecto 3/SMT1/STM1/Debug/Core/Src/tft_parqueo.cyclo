@@ -1,0 +1,13 @@
+../Core/Src/tft_parqueo.c:25:13:tx	3
+../Core/Src/tft_parqueo.c:29:13:command	2
+../Core/Src/tft_parqueo.c:37:13:rect	12
+../Core/Src/tft_parqueo.c:71:13:text	10
+../Core/Src/tft_parqueo.c:79:13:lcd_init	1
+../Core/Src/tft_parqueo.c:93:17:free_count	3
+../Core/Src/tft_parqueo.c:96:13:car	1
+../Core/Src/tft_parqueo.c:108:13:bay	4
+../Core/Src/tft_parqueo.c:116:13:number	3
+../Core/Src/tft_parqueo.c:124:13:screen	7
+../Core/Src/tft_parqueo.c:136:9:TFT_Parqueo_Init	1
+../Core/Src/tft_parqueo.c:143:9:TFT_Parqueo_Error	1
+../Core/Src/tft_parqueo.c:144:6:TFT_Parqueo_Actualizar	10

@@ -18,17 +18,15 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "tft_parqueo.h"
 #include <stdio.h>
 #include <string.h>
 /* USER CODE END Includes */
-
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
 /* USER CODE END PTD */
-
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
 #define PRIMER_PARQUEO           1U
@@ -48,23 +46,16 @@
 #define PORCENTAJE_OCUPADO        60U
 #define PORCENTAJE_LIBRE          80U
 /* USER CODE END PD */
-
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
 /* USER CODE END PM */
-
 /* Private variables ---------------------------------------------------------*/
 ADC_HandleTypeDef hadc1;
-
 I2C_HandleTypeDef hi2c1;
-
 SPI_HandleTypeDef hspi2;
-
 TIM_HandleTypeDef htim3;
 DMA_HandleTypeDef hdma_tim3_ch1_trig;
-
 UART_HandleTypeDef huart2;
-
 /* USER CODE BEGIN PV */
 /*
  * P1: A0 -> PA0 -> ADC1_IN0
@@ -96,7 +87,6 @@ static volatile uint8_t dma_terminado = 0U;
 static volatile uint8_t dma_error = 0U;
 static uint8_t neo_habilitado = 0U;
 static uint8_t lectura_valida[NUM_LDR] = {0};
-
 /* I2C: bytes persistentes, nunca buffers locales de una interrupcion.
  * 0xFF indica dato LOCAL invalido; el ESP32 de prueba ya lo rechaza.
  * No se utiliza 0xFF como error en el byte GLOBAL (alli significa 8 ocupados).
@@ -116,9 +106,7 @@ static uint32_t i2c_ultimo_reintento = 0U;
 /* Preparado para el display: usar el numero solo cuando global_vigente=1. */
 static uint8_t espacios_libres_global = 0U;
 static uint8_t global_vigente = 0U;
-
 /* USER CODE END PV */
-
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
@@ -134,7 +122,6 @@ static HAL_StatusTypeDef LDR_Leer(uint32_t canal, uint16_t *valor);
 static HAL_StatusTypeDef LDR_Calibrar(void);
 static void LDR_ActualizarEstados(void);
 /* USER CODE END PFP */
-
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 static void Serial_Enviar(const char *texto)
@@ -360,7 +347,6 @@ static HAL_StatusTypeDef NeoPixel_Enviar(uint8_t mode)
     }
     return resultado;
 }
-
 /* I2C prioridad 0, DMA NeoPixel 1, SysTick 15.
  * No ejecutar UART, esperas o conversiones ADC en callbacks I2C.
  */
@@ -374,13 +360,11 @@ static void I2C_Prioridades(void)
     HAL_NVIC_EnableIRQ(I2C1_EV_IRQn);
     HAL_NVIC_EnableIRQ(I2C1_ER_IRQn);
 }
-
 static void I2C_Escuchar(void)
 {
     if (HAL_I2C_EnableListen_IT(&hi2c1) != HAL_OK)
         i2c_recuperar = 1U;
 }
-
 /* Recuperacion fuera de las interrupciones, sin detener los sensores.
  * Un corto o SDA/SCL retenida externamente requiere revisar el bus fisico.
  */
@@ -401,14 +385,12 @@ static void I2C_Servicio(void)
     if (resultado == HAL_OK) I2C_Escuchar();
     else i2c_recuperar = 1U;
 }
-
 static uint8_t ContarLibres(uint8_t dato)
 {
     uint8_t libres = 8U;
     for (uint8_t i = 0U; i < 8U; i++) libres -= (dato >> i) & 1U;
     return libres;
 }
-
 static void I2C_Reporte(void)
 {
     /* Copia coherente de byte + fecha + contadores; secciones muy cortas. */
@@ -422,7 +404,6 @@ static void I2C_Reporte(void)
     uint32_t errores = i2c_errores;
     uint32_t codigo = i2c_ultimo_error;
     __set_PRIMASK(primask);
-
     uint32_t edad = HAL_GetTick() - fecha;
     global_vigente = disponible && (edad <= 2000U);
     if (global_vigente)
@@ -447,33 +428,48 @@ static void I2C_Reporte(void)
              (unsigned long)errores, (unsigned long)codigo);
     Serial_Enviar(mensaje);
 }
-
+/* Actualiza desde una copia coherente del byte global y su fecha.
+ * Se dibuja fuera de ISR con I2C habilitado; no modifica estado_local.
+ */
+static void TFT_Servicio(void)
+{
+    static uint32_t ultima_revision = 0U;
+    static uint8_t error_reportado = 0U;
+    uint32_t ahora = HAL_GetTick();
+    if ((uint32_t)(ahora - ultima_revision) < 100U) return;
+    ultima_revision = ahora;
+    uint32_t primask = __get_PRIMASK();
+    __disable_irq();
+    uint8_t bits = global_recibido;
+    uint8_t disponible = global_disponible;
+    uint32_t fecha = global_tick;
+    ahora = HAL_GetTick();
+    __set_PRIMASK(primask);
+    uint8_t vigente = disponible && ((uint32_t)(ahora-fecha) <= 2000U);
+    TFT_Parqueo_Actualizar(bits,vigente);
+    if (TFT_Parqueo_Error() && !error_reportado) {
+        error_reportado=1U;
+        Serial_Enviar("ERROR TFT SPI. LDR, NeoPixels e I2C continuan activos. Revisar y reiniciar.\r\n");
+    }
+}
 /* USER CODE END 0 */
-
 /**
   * @brief  The application entry point.
   * @retval int
   */
 int main(void)
 {
-
   /* USER CODE BEGIN 1 */
   /* USER CODE END 1 */
-
   /* MCU Configuration--------------------------------------------------------*/
-
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
-
   /* USER CODE BEGIN Init */
   /* USER CODE END Init */
-
   /* Configure the system clock */
   SystemClock_Config();
-
   /* USER CODE BEGIN SysInit */
   /* USER CODE END SysInit */
-
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_DMA_Init();
@@ -485,7 +481,7 @@ int main(void)
   /* USER CODE BEGIN 2 */
     I2C_Prioridades();
     I2C_Escuchar();
-    Serial_Enviar("\r\nSTM1 - VERSION I2C + LDR + NEOPIXEL - direccion 0x10\r\n");
+    Serial_Enviar("\r\nSTM1 - VERSION TFT + I2C + LDR + NEOPIXEL - direccion 0x10\r\n");
     NeoPixel_Pin(0U);
     HAL_Delay(10U);
     Serial_Enviar("\r\nSTM1: LDR + NEOPIXEL | P1-P4\r\n"
@@ -497,8 +493,9 @@ int main(void)
     (void)NeoPixel_Enviar(0U);
     if (LDR_Calibrar() == HAL_OK) calibrado = 1U;
     else Serial_Enviar("Calibracion fallida: revisar y reiniciar con LDR descubiertos.\r\n");
+    (void)TFT_Parqueo_Init();
+    Serial_Enviar("TFT: 8 parqueos desde ESP32; sin dato vigente se muestra SIN CONEXION.\r\n");
   /* USER CODE END 2 */
-
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
@@ -548,19 +545,19 @@ int main(void)
       Serial_Enviar(neo_habilitado ? "NeoPixel: DMA operativo (sin confirmacion del LED).\r\n\r\n" :
                                     "NeoPixel: envio deshabilitado por error.\r\n\r\n");
       I2C_Reporte();
+      TFT_Servicio();
       uint32_t pausa = HAL_GetTick();
       while ((HAL_GetTick() - pausa) < PERIODO_REPORTE_MS)
       {
           I2C_Servicio();
+          TFT_Servicio();
           HAL_Delay(1U);
       }
     /* USER CODE END WHILE */
-
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
 }
-
 /**
   * @brief System Clock Configuration
   * @retval None
@@ -569,12 +566,10 @@ void SystemClock_Config(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
-
   /** Configure the main internal regulator output voltage
   */
   __HAL_RCC_PWR_CLK_ENABLE();
   __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE3);
-
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
@@ -586,7 +581,6 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
-
   /** Initializes the CPU, AHB and APB buses clocks
   */
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
@@ -595,13 +589,11 @@ void SystemClock_Config(void)
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
-
   if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
   {
     Error_Handler();
   }
 }
-
 /**
   * @brief ADC1 Initialization Function
   * @param None
@@ -609,16 +601,12 @@ void SystemClock_Config(void)
   */
 static void MX_ADC1_Init(void)
 {
-
   /* USER CODE BEGIN ADC1_Init 0 */
   __HAL_RCC_ADC1_CLK_ENABLE();
   /* USER CODE END ADC1_Init 0 */
-
   ADC_ChannelConfTypeDef sConfig = {0};
-
   /* USER CODE BEGIN ADC1_Init 1 */
   /* USER CODE END ADC1_Init 1 */
-
   /** Configure the global features of the ADC (Clock, Resolution, Data Alignment and number of conversion)
   */
   hadc1.Instance = ADC1;
@@ -637,7 +625,6 @@ static void MX_ADC1_Init(void)
   {
     Error_Handler();
   }
-
   /** Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time.
   */
   sConfig.Channel = ADC_CHANNEL_0;
@@ -663,9 +650,7 @@ static void MX_ADC1_Init(void)
     gpio_ldr.Pin = GPIO_PIN_0;
     HAL_GPIO_Init(GPIOB, &gpio_ldr);
   /* USER CODE END ADC1_Init 2 */
-
 }
-
 /**
   * @brief I2C1 Initialization Function
   * @param None
@@ -673,10 +658,8 @@ static void MX_ADC1_Init(void)
   */
 static void MX_I2C1_Init(void)
 {
-
   /* USER CODE BEGIN I2C1_Init 0 */
   /* USER CODE END I2C1_Init 0 */
-
   /* USER CODE BEGIN I2C1_Init 1 */
   /* USER CODE END I2C1_Init 1 */
   hi2c1.Instance = I2C1;
@@ -697,9 +680,7 @@ static void MX_I2C1_Init(void)
   hi2c1.Init.OwnAddress1 = (0x10U << 1);
   if (HAL_I2C_Init(&hi2c1) != HAL_OK) Error_Handler();
   /* USER CODE END I2C1_Init 2 */
-
 }
-
 /**
   * @brief SPI2 Initialization Function
   * @param None
@@ -707,13 +688,9 @@ static void MX_I2C1_Init(void)
   */
 static void MX_SPI2_Init(void)
 {
-
   /* USER CODE BEGIN SPI2_Init 0 */
-
   /* USER CODE END SPI2_Init 0 */
-
   /* USER CODE BEGIN SPI2_Init 1 */
-
   /* USER CODE END SPI2_Init 1 */
   /* SPI2 parameter configuration*/
   hspi2.Instance = SPI2;
@@ -733,11 +710,8 @@ static void MX_SPI2_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN SPI2_Init 2 */
-
   /* USER CODE END SPI2_Init 2 */
-
 }
-
 /**
   * @brief TIM3 Initialization Function
   * @param None
@@ -745,14 +719,11 @@ static void MX_SPI2_Init(void)
   */
 static void MX_TIM3_Init(void)
 {
-
   /* USER CODE BEGIN TIM3_Init 0 */
   /* USER CODE END TIM3_Init 0 */
-
   TIM_ClockConfigTypeDef sClockSourceConfig = {0};
   TIM_MasterConfigTypeDef sMasterConfig = {0};
   TIM_OC_InitTypeDef sConfigOC = {0};
-
   /* USER CODE BEGIN TIM3_Init 1 */
   /* USER CODE END TIM3_Init 1 */
   htim3.Instance = TIM3;
@@ -792,9 +763,7 @@ static void MX_TIM3_Init(void)
   __HAL_TIM_ENABLE_OCxPRELOAD(&htim3, TIM_CHANNEL_1);
   /* USER CODE END TIM3_Init 2 */
   HAL_TIM_MspPostInit(&htim3);
-
 }
-
 /**
   * @brief USART2 Initialization Function
   * @param None
@@ -802,10 +771,8 @@ static void MX_TIM3_Init(void)
   */
 static void MX_USART2_UART_Init(void)
 {
-
   /* USER CODE BEGIN USART2_Init 0 */
   /* USER CODE END USART2_Init 0 */
-
   /* USER CODE BEGIN USART2_Init 1 */
   /* USER CODE END USART2_Init 1 */
   huart2.Instance = USART2;
@@ -822,25 +789,19 @@ static void MX_USART2_UART_Init(void)
   }
   /* USER CODE BEGIN USART2_Init 2 */
   /* USER CODE END USART2_Init 2 */
-
 }
-
 /**
   * Enable DMA controller clock
   */
 static void MX_DMA_Init(void)
 {
-
   /* DMA controller clock enable */
   __HAL_RCC_DMA1_CLK_ENABLE();
-
   /* DMA interrupt init */
   /* DMA1_Stream4_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Stream4_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(DMA1_Stream4_IRQn);
-
 }
-
 /**
   * @brief GPIO Initialization Function
   * @param None
@@ -851,75 +812,60 @@ static void MX_GPIO_Init(void)
   GPIO_InitTypeDef GPIO_InitStruct = {0};
   /* USER CODE BEGIN MX_GPIO_Init_1 */
   /* USER CODE END MX_GPIO_Init_1 */
-
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOC_CLK_ENABLE();
   __HAL_RCC_GPIOH_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
   __HAL_RCC_GPIOB_CLK_ENABLE();
-
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOA, LD2_Pin|GPIO_PIN_8|GPIO_PIN_9|GPIO_PIN_10, GPIO_PIN_RESET);
-
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOC, GPIO_PIN_4, GPIO_PIN_SET);
-
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOC, GPIO_PIN_5|GPIO_PIN_7, GPIO_PIN_RESET);
-
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, GPIO_PIN_10|GPIO_PIN_3|GPIO_PIN_5, GPIO_PIN_RESET);
-
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, GPIO_PIN_12, GPIO_PIN_SET);
-
   /*Configure GPIO pin : B1_Pin */
   GPIO_InitStruct.Pin = B1_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(B1_GPIO_Port, &GPIO_InitStruct);
-
   /*Configure GPIO pins : LD2_Pin PA8 PA9 PA10 */
   GPIO_InitStruct.Pin = LD2_Pin|GPIO_PIN_8|GPIO_PIN_9|GPIO_PIN_10;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
-
   /*Configure GPIO pins : PC4 PC5 */
   GPIO_InitStruct.Pin = GPIO_PIN_4|GPIO_PIN_5;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
-
   /*Configure GPIO pins : PB10 PB3 PB5 */
   GPIO_InitStruct.Pin = GPIO_PIN_10|GPIO_PIN_3|GPIO_PIN_5;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-
   /*Configure GPIO pin : PB12 */
   GPIO_InitStruct.Pin = GPIO_PIN_12;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-
   /*Configure GPIO pin : PC7 */
   GPIO_InitStruct.Pin = GPIO_PIN_7;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
-
   /* USER CODE BEGIN MX_GPIO_Init_2 */
   /* USER CODE END MX_GPIO_Init_2 */
 }
-
 /* USER CODE BEGIN 4 */
-
 void HAL_I2C_AddrCallback(I2C_HandleTypeDef *hi2c,
                          uint8_t direccion, uint16_t direccion_detectada)
 {
@@ -941,12 +887,10 @@ void HAL_I2C_AddrCallback(I2C_HandleTypeDef *hi2c,
     }
     if (resultado != HAL_OK) i2c_recuperar = 1U;
 }
-
 void HAL_I2C_SlaveTxCpltCallback(I2C_HandleTypeDef *hi2c)
 {
     if (hi2c->Instance == I2C1) i2c_lecturas++;
 }
-
 void HAL_I2C_SlaveRxCpltCallback(I2C_HandleTypeDef *hi2c)
 {
     if (hi2c->Instance != I2C1) return;
@@ -955,14 +899,12 @@ void HAL_I2C_SlaveRxCpltCallback(I2C_HandleTypeDef *hi2c)
     global_disponible = 1U;
     i2c_escrituras++;
 }
-
 void HAL_I2C_ListenCpltCallback(I2C_HandleTypeDef *hi2c)
 {
     if (hi2c->Instance != I2C1) return;
     if (HAL_I2C_EnableListen_IT(hi2c) != HAL_OK)
         i2c_recuperar = 1U;
 }
-
 void HAL_I2C_ErrorCallback(I2C_HandleTypeDef *hi2c)
 {
     if (hi2c->Instance != I2C1) return;
@@ -982,7 +924,6 @@ void HAL_I2C_ErrorCallback(I2C_HandleTypeDef *hi2c)
              (HAL_I2C_GetState(hi2c) != HAL_I2C_STATE_LISTEN))
         i2c_recuperar = 1U;
 }
-
 void HAL_TIM_PWM_PulseFinishedCallback(TIM_HandleTypeDef *htim)
 {
     if ((htim->Instance == TIM3) &&
@@ -993,7 +934,6 @@ void HAL_TIM_ErrorCallback(TIM_HandleTypeDef *htim)
     if (htim->Instance == TIM3) dma_error = 1U;
 }
 /* USER CODE END 4 */
-
 /**
   * @brief  This function is executed in case of error occurrence.
   * @retval None
